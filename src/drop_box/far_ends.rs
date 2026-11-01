@@ -8,8 +8,11 @@
 //! `transport_sftp::serving`), FTPS over Xmip's TLS with a certificate from
 //! the estate's own self-signed source — each serving every receiving node
 //! at once over one directory, and writes where each listens beside the
-//! drop box, so every node finds them. The file protocol's directory is the
-//! Party's own under the drop box, as it was.
+//! drop box, so every node finds them. Each server admits the Party alone,
+//! by a password minted as it starts and checked by the password gate
+//! (`crate::login`; open problem 59), written beside its address for the
+//! nodes to present. The file protocol's directory is the Party's own under
+//! the drop box, as it was.
 
 use std::net::TcpListener;
 use std::path::Path;
@@ -20,7 +23,7 @@ use ed25519_dalek::SigningKey;
 use provision::{Order, Purpose, Source};
 use provision_self_signed::{SETTINGS, SelfSigned, TECHNOLOGY};
 use transport::concurrent::Concurrent;
-use transport::{Configured, NodeLocation, Transport};
+use transport::{Configured, Login, NodeLocation, Transport};
 use transport_file::FileTransport;
 use transport_ftp::{FtpTransport, Secured, Store};
 use transport_sftp::SftpTransport;
@@ -28,6 +31,7 @@ use transport_sftp::directory::Directory;
 use xcore::settings::Given;
 
 use super::DropBox;
+use crate::login;
 
 /// Every protocol a Party drops over: the file family.
 pub const PROTOCOLS: [&str; 4] = ["file", "ftp", "ftps", "sftp"];
@@ -92,21 +96,27 @@ impl FarEnds {
         for party in parties {
             for protocol in PROTOCOLS.into_iter().filter(|one| remote(one)) {
                 let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
+                // The Party's own login, its password checked by the
+                // password gate (open problem 59).
+                let secret = login::minted();
+                let check = login::checking([(*party, secret.as_str())]);
                 let far = match protocol {
                     "sftp" => transport_sftp::serving(
                         listener,
                         SigningKey::from_bytes(&HOST_SEED),
                         Arc::new(Mutex::new(Directory::default())),
-                        Some(PATIENCE),
+                        (Some(PATIENCE), check),
                     ),
                     _ => transport_ftp::serving(
                         listener,
                         Store::default(),
-                        Some(PATIENCE),
+                        (Some(PATIENCE), check),
                         (protocol == "ftps").then(|| Arc::clone(&guard)),
                     ),
                 }
                 .map_err(|error| format!("{protocol} for {party}: {error}"))?;
+                std::fs::write(drop_box.secret(protocol, party), secret)
+                    .map_err(|error| error.to_string())?;
                 std::fs::write(drop_box.address(protocol, party), far.address())
                     .map_err(|error| error.to_string())?;
                 serving.push(far);
@@ -132,15 +142,30 @@ pub fn transport(
         let file = FileTransport::new(drop_box.location(party));
         return Some(on(file, node));
     }
+    // The secret is written before the address, so a far end that says where
+    // it listens has said what it admits.
     let address = std::fs::read_to_string(drop_box.address(protocol, party)).ok()?;
     let address = address.trim();
+    let secret = match std::fs::read_to_string(drop_box.secret(protocol, party)) {
+        Ok(secret) => secret,
+        Err(error) => return Some(Err(format!("{protocol} for {party}'s secret: {error}"))),
+    };
+    let ftp = || {
+        FtpTransport::new(address)
+            .logging_in(Login::new(party, secret.as_str()))
+            .timing_out_after(PATIENCE)
+    };
     Some(match protocol {
-        "sftp" => on(SftpTransport::new(address).timing_out_after(PATIENCE), node),
-        "ftps" => trusted(drop_box.anchor().as_path()).and_then(|secured| {
-            let ftps = FtpTransport::new(address).timing_out_after(PATIENCE);
-            on(ftps.secured(secured), node)
-        }),
-        _ => on(FtpTransport::new(address).timing_out_after(PATIENCE), node),
+        "sftp" => on(
+            SftpTransport::new(address)
+                .as_user(party)
+                .with_password(secret.as_str())
+                .timing_out_after(PATIENCE),
+            node,
+        ),
+        "ftps" => trusted(drop_box.anchor().as_path())
+            .and_then(|secured| on(ftp().secured(secured), node)),
+        _ => on(ftp(), node),
     })
 }
 

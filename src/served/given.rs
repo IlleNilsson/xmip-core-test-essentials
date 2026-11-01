@@ -67,6 +67,7 @@ pub(super) fn cluster_text(
         placed::Binding {
             address: folder.unwrap_or_default(),
             settings: Vec::new(),
+            secret: None,
             accepting: placement.placed == Placed::Receive,
         }
     });

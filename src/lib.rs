@@ -73,6 +73,7 @@ pub mod identity;
 pub mod image;
 pub mod in_process;
 pub mod ledger_stream;
+pub mod login;
 pub mod low_latency;
 pub mod operator_orders;
 pub mod parties;

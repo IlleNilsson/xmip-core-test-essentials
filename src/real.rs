@@ -24,7 +24,7 @@ use std::path::Path;
 
 use node::Capability;
 use observe::{Health, HealthRecord, Publication, Snapshot};
-use runtime::plane::Remote;
+use runtime::plane::{Outcome, Remote};
 
 use crate::environment;
 use crate::roster::Roster;
@@ -98,6 +98,26 @@ impl RealNode {
             capability,
             remote: Remote::local(endpoint, std::time::Duration::ZERO)?,
         })
+    }
+
+    /// The password secret `name` set to `value` on this node, through its
+    /// operate listener as the run's operator certificate proves the rig
+    /// (`Remote::set_secret`): the one place the value is kept, read by
+    /// the Location naming it at its next connection, and never read back.
+    ///
+    /// # Errors
+    ///
+    /// REFUSED, in words: the node did not answer, or did not take it.
+    pub fn set_password(&self, name: &str, value: &str) -> Result<(), String> {
+        let refused = |why: &str| format!("REFUSED: the secret '{name}' on {}: {why}", self.name);
+        match self
+            .remote
+            .set_secret(&self.name, (name, "password", value))
+        {
+            Ok((Outcome::Taken, _)) => Ok(()),
+            Ok((_, said)) => Err(refused(&said)),
+            Err(why) => Err(refused(&why)),
+        }
     }
 
     /// What the node publishes now, read over its operate listener, into

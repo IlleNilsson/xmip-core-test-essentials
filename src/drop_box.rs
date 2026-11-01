@@ -75,6 +75,13 @@ impl DropBox {
         self.servers().join(format!("{protocol}-{party}"))
     }
 
+    /// The password the `protocol` server of the Party called `party`
+    /// admits the Party with, minted as it started: the run's own, for the
+    /// nodes it starts in processes of their own to present.
+    fn secret(&self, protocol: &str, party: &str) -> PathBuf {
+        self.servers().join(format!("{protocol}-{party}.secret"))
+    }
+
     /// The anchor an FTPS client trusts the servers' certificate by.
     fn anchor(&self) -> PathBuf {
         self.servers().join("anchor.pem")

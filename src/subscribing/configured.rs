@@ -56,6 +56,7 @@ pub(super) fn configured(
             Placed::Send => outbox.clone(),
         },
         settings: Vec::new(),
+        secret: None,
         accepting: false,
     });
     let file =

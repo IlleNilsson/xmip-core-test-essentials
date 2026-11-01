@@ -189,7 +189,11 @@ Parties' far end (`src/far_end.rs`): the roll serves SFTP on this computer,
 port 7422, each Location the environment placed on the real nodes a user of
 its own, drops into the Receive Locations' and is told of what the Send
 Ports put; no node is started beside real ones (ADR-0028, amendment
-2026-10-22).
+2026-10-22). Each user logs in by the password its Location's secret holds,
+`far-end.<user>`: the roll mints it, sets it on the node that takes the
+Location through its operate listener, and the far end keeps only its
+verifier, checked by the password gate (`src/login.rs`; ADR-0019,
+amendment 2026-11-01).
 
 ### Every transport declares its ceiling
 
@@ -589,7 +593,9 @@ of its own, which the roll stands up for the whole roll
 (`src/drop_box/far_ends.rs`) — the transports' own server sides, serving
 every node at once, FTPS over Xmip's TLS with a certificate from the
 estate's own self-signed source — writing where each listens under
-`<shared>/drop-box/servers`. The roll drops a burst of eight files for each
+`<shared>/drop-box/servers`, and beside it the password each admits the
+Party with, minted as it starts and checked by the password gate
+(`src/login.rs`; ADR-0019, amendment 2026-11-01). The roll drops a burst of eight files for each
 Party over each protocol through that transport's send — every round over
 file, every fifth over the servers, since each FTP transfer and listing
 spends a local port — and every node that declared receive reads every

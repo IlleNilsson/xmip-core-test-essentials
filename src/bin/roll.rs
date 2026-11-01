@@ -343,7 +343,7 @@ fn nodes(cluster: &str, base: &Path) -> Result<Nodes, String> {
     // reach no Storage node of theirs (ADR-0028, amendment 2026-10-22).
     if !real.is_empty() {
         let arrived = Carried::arrivals();
-        let far = FarEnd::serve(&names, &arrived)?;
+        let far = FarEnd::serve(&real, &arrived)?;
         let carried = far
             .as_ref()
             .map(|far| Carried::new(&far.bindings, arrived))
