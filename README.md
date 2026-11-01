@@ -193,7 +193,9 @@ Ports put; no node is started beside real ones (ADR-0028, amendment
 `far-end.<user>`: the roll mints it, sets it on the node that takes the
 Location through its operate listener, and the far end keeps only its
 verifier, checked by the password gate (`src/login.rs`; ADR-0019,
-amendment 2026-11-01).
+amendment 2026-11-01). It enrolls no key: the check's key half is the
+ssh-key gate's (`Verifier::admits`), holding a key to the one user it is
+enrolled for, so a key is refused whatever user it signed for.
 
 ### Every transport declares its ceiling
 
@@ -594,8 +596,8 @@ of its own, which the roll stands up for the whole roll
 every node at once, FTPS over Xmip's TLS with a certificate from the
 estate's own self-signed source — writing where each listens under
 `<shared>/drop-box/servers`, and beside it the password each admits the
-Party with, minted as it starts and checked by the password gate
-(`src/login.rs`; ADR-0019, amendment 2026-11-01). The roll drops a burst of eight files for each
+Party with, minted as it starts and checked by the password gate, no key
+enrolled (`src/login.rs`; ADR-0019, amendment 2026-11-01). The roll drops a burst of eight files for each
 Party over each protocol through that transport's send — every round over
 file, every fifth over the servers, since each FTP transfer and listing
 spends a local port — and every node that declared receive reads every

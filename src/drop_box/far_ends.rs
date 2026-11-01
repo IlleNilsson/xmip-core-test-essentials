@@ -97,9 +97,10 @@ impl FarEnds {
             for protocol in PROTOCOLS.into_iter().filter(|one| remote(one)) {
                 let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
                 // The Party's own login, its password checked by the
-                // password gate (open problem 59).
+                // password gate (open problem 59); no key is enrolled, as
+                // no Party logs in by one, so every key is refused.
                 let secret = login::minted();
-                let check = login::checking([(*party, secret.as_str())]);
+                let check = login::checking([(*party, secret.as_str())], Vec::new());
                 let far = match protocol {
                     "sftp" => transport_sftp::serving(
                         listener,

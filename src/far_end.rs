@@ -14,8 +14,9 @@
 //! node that takes the Location through that node's operate listener — the
 //! node's secret store, the one place the value is kept — and the far end
 //! keeps only its salted verifier, checked by the password gate
-//! (`crate::login`; open problem 59). No directory is chosen by a name
-//! nothing checked.
+//! (`crate::login`; open problem 59). It enrolls no key, so a key is
+//! refused whatever it signed. No directory is chosen by a name nothing
+//! checked.
 //!
 //! The host's firewall must let the machines in on that port; the
 //! environment's README says how, and that it needs elevation.
@@ -97,10 +98,13 @@ impl FarEnd {
                 .get(user)
                 .map_or_else(Shared::default, Arc::clone)
         };
+        // Every Location here logs in by its password, so no key is
+        // enrolled and every key is refused.
         let check = login::checking(
             enrolled
                 .iter()
                 .map(|(user, password)| (user.as_str(), password.as_str())),
+            Vec::new(),
         );
         // The values go with the list: the far end keeps the verifiers alone.
         drop(enrolled);

@@ -200,6 +200,9 @@ authenticate = { package = "xmip-core-authenticate", git = "https://github.com/I
 # The gate the far ends prove a node's password through, handed to Xmip's
 # SSH and FTP servers as their check (`login`; open problem 59).
 authenticate-password = { package = "xmip-core-authenticate-password", git = "https://github.com/IlleNilsson/xmip-core-authenticate-password", branch = "main" }
+# The gate that says whether a key, its signature verified by the SSH
+# server, is the user's: the far ends' check for a key (`login`).
+authenticate-ssh-key = { package = "xmip-core-authenticate-ssh-key", git = "https://github.com/IlleNilsson/xmip-core-authenticate-ssh-key", branch = "main" }
 authorize = { package = "xmip-core-authorize", git = "https://github.com/IlleNilsson/xmip-core-authorize", branch = "main" }
 # The policy each node hands its hub, allowing its two Parties to subscribe.
 authorize-party = { package = "xmip-core-authorize-party", git = "https://github.com/IlleNilsson/xmip-core-authorize-party", branch = "main" }
