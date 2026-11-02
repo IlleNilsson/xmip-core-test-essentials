@@ -259,6 +259,20 @@ contract_sql = { package = "xmip-core-contract-sql", git = "https://github.com/I
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 
+[features]
+# What the crate's timing program reads of a cluster beyond a roll's surface
+# (`Cluster::idle_pass`, src/cluster/idle.rs): a test's, never a roll's.
+test-support = []
+
+# The crate's timing program (doc/governance/rust-style.md section 5c): a
+# plain cargo test leaves it out, and the landing runs it after every other
+# test here, alone, one test at a time, so what it measures is its work.
+[[test]]
+name = "measured"
+path = "tests/measured/main.rs"
+test = false
+required-features = ["test-support"]
+
 [dev-dependencies]
 # The test cluster's names, from its `xmip.toml` (`configure::fixture`).
 configure = { package = "xmip-core-configure", git = "https://github.com/IlleNilsson/xmip-core-configure", branch = "main", features = ["test-support"] }
@@ -290,3 +304,11 @@ expect_used = "allow"
 # wrong.* Every dependency is built optimized; this crate stays debuggable.
 [profile.dev.package."*"]
 opt-level = 3
+
+# Built whole, never incrementally: rebuilt incrementally after the runtime
+# changes under it, this crate's binaries failed to link on Windows, its own
+# library naming symbols (core's precondition_check, its own constants) that
+# none of its codegen units held (2026-11-02), and the same build linked with
+# CARGO_INCREMENTAL=0. A compiler defect, not this crate's.
+[profile.dev.package.xmip-core-test-playground]
+incremental = false

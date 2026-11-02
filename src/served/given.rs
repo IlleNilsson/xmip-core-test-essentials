@@ -48,8 +48,9 @@ pub(super) fn placed(
 /// Playground's own with the `bindings` the run placed, each node's roles as
 /// the run declares them, each Storage node's name resolved to the address
 /// on loopback it serves at, each node its own data folder, its local
-/// endpoint named for the run's cluster and its operate listener on
-/// loopback.
+/// endpoint named for the run's cluster, its operate listener on
+/// loopback, and the account the run runs as its one relay, for the
+/// tester's web host (`[operate] relay`).
 pub(super) fn cluster_text(
     cluster: &str,
     declared: &[(String, Vec<String>)],
@@ -95,6 +96,7 @@ pub(super) fn cluster_text(
             }
         }
     }
+    let tester = runtime::plane::local::running_as()?;
     for (name, roles) in declared {
         let node = table(&mut file, &["nodes", name]);
         node.insert("roles".to_string(), Value::String(roles.join(", ")));
@@ -105,6 +107,13 @@ pub(super) fn cluster_text(
         operate.insert(
             "listen".to_string(),
             Value::String(format!("127.0.0.1:{}", free()?)),
+        );
+        // The tester's web host runs as the tester, as the run does, and
+        // relays the tester's browser to the node, which decides by the
+        // browser's own certificate (ADR-0009, amendment 2026-11-01).
+        operate.insert(
+            "relay".to_string(),
+            Value::Array(vec![Value::String(tester.clone())]),
         );
         if let Some((_, at)) = serving.iter().find(|(serving, _)| serving == name) {
             table(&mut file, &["nodes", name, "storage"])
@@ -212,7 +221,7 @@ mod tests {
         let cluster = crate::cluster_name().expect("the test cluster is named");
         let base = std::env::temp_dir().join(format!("xmip-given-{}", std::process::id()));
         let now = observe::now_unix_nanos() / 1_000_000_000;
-        provision::Issuer::kept_or_made(
+        let issuer = provision::Issuer::kept_or_made(
             &crate::environment::authority(),
             "Xmip Playground test authority",
             now,
@@ -220,6 +229,7 @@ mod tests {
         )
         .expect("the authority Start-XmipTest makes");
         let mut anchors = Vec::new();
+        let mut nodes = Vec::new();
         for run in ["first", "second"] {
             let area = base.join(run);
             let text = cluster_text(
@@ -229,7 +239,7 @@ mod tests {
             )
             .expect("the cluster's text");
             for (node, _) in &declared {
-                configured(&text, (&cluster, node), &area).expect("configured");
+                nodes.push(configured(&text, (&cluster, node), &area).expect("configured"));
                 let tls = area.join(node).join("tls");
                 anchors
                     .push(std::fs::read(tls.join(provision::node::ANCHORS_FILE)).expect("anchors"));
@@ -241,6 +251,53 @@ mod tests {
             anchors.iter().all(|anchor| *anchor == kept),
             "one authority for every run"
         );
+
+        // The tester's operator certificate, signed by that same authority as
+        // `New-XmipCertificate -Request` has it signed, is one every node the
+        // runs started relays for the tester's web host, which runs as the
+        // run does (ADR-0009, the second amendment of 2026-11-01).
+        let asked = provision::operator::request("tester@example.org").expect("a request");
+        let der = provision::pem::decode(provision::operator::REQUEST_LABEL, &asked.request)
+            .expect("the request")
+            .remove(0);
+        let chain = issuer
+            .sign(&der, provision::Purpose::Operator, now - 60, now + 3600)
+            .expect("signed");
+        let leaf = provision::pem::decode("CERTIFICATE", &chain)
+            .expect("the chain")
+            .remove(0);
+        let tester = runtime::plane::local::running_as().expect("the run's account");
+        for path in &nodes {
+            assert!(
+                relayed(path, &tester, &leaf),
+                "{} relays the tester",
+                path.display()
+            );
+        }
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    // Whether the node configured at `path` relays for `through` the caller
+    // `leaf` (DER) proves: its own `[operate] relay` and `anchors`, read as
+    // the node reads them, and its own verification.
+    fn relayed(path: &Path, through: &str, leaf: &[u8]) -> bool {
+        let text = std::fs::read_to_string(path).expect("the node's configuration");
+        let table: Table = text.parse().expect("TOML");
+        let operate = table["operate"].as_table().expect("[operate]");
+        let relay: Vec<String> = operate["relay"]
+            .as_array()
+            .expect("relay")
+            .iter()
+            .filter_map(|named| named.as_str().map(str::to_string))
+            .collect();
+        let anchors = path
+            .parent()
+            .expect("its folder")
+            .join(operate["anchors"].as_str().expect("anchors"));
+        let anchors = std::fs::read_to_string(anchors).expect("the node's anchors");
+        let relaying = runtime::plane::vouched::Relaying::new(relay, &anchors).expect("relaying");
+        relaying.relays(through)
+            && runtime::plane::vouched::vouch(&relaying, through, leaf)
+                .is_ok_and(|handle| runtime::plane::vouched::unvouch(handle, through))
     }
 }

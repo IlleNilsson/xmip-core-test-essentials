@@ -112,7 +112,7 @@ impl RealNode {
         let refused = |why: &str| format!("REFUSED: the secret '{name}' on {}: {why}", self.name);
         match self
             .remote
-            .set_secret(&self.name, (name, "password", value))
+            .set_secret(0, &self.name, (name, "password", value))
         {
             Ok((Outcome::Taken, _)) => Ok(()),
             Ok((_, said)) => Err(refused(&said)),

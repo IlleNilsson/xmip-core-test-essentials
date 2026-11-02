@@ -33,6 +33,8 @@
 //! over and over).
 
 mod binary;
+#[cfg(any(test, feature = "test-support"))]
+mod idle;
 mod liveness;
 mod member;
 mod orders;
@@ -51,6 +53,8 @@ pub(crate) use binary::built_cluster_binary;
 #[cfg(test)]
 pub(crate) use binary::built_node_binary;
 pub use binary::{cluster_binary, node_binary};
+#[cfg(any(test, feature = "test-support"))]
+pub use idle::IdlePass;
 pub(crate) use liveness::Liveness;
 use member::Member;
 pub use orders::Orders;
@@ -551,49 +555,14 @@ mod tests {
     /// over nineteen brutal nodes took longer than ten seconds.
     #[test]
     fn a_pass_over_idle_nodes_reads_their_beats_and_parses_nothing() {
-        const NODES: usize = 4;
-        const PASSES: u32 = 100;
-        let (dir, mut cluster) = spawn(Stress::Calm, NODES, 0);
+        // What a pass costs a node is the timing program's (tests/measured).
+        let (dir, mut cluster) = spawn(Stress::Calm, 4, 0);
         std::fs::create_dir_all(&dir).expect("the scratch directory");
-        // A publication the size a brutal node writes, and a beat saying its
-        // first round is done, each only this test writes.
         let idle = first(&cluster);
-        let mut published = Snapshot::new();
-        for leaf in 0..2_000 {
-            published.record_health(HealthRecord {
-                scope: format!("{idle}/exclusive-claim/file/{leaf}"),
-                health: Health::Fine,
-                severity: 0,
-                evidence: "one holder at a time".to_string(),
-                observed_unix_nanos: 7,
-            });
-        }
-        let text = crate::report::node_toml(&idle, &published, Vec::new());
-        let beat = toml::to_string(&Beat {
-            unix_nanos: 7,
-            rounds: 1,
-        })
-        .expect("a beat serializes");
-        for (index, node) in cluster.nodes.iter_mut().enumerate() {
-            node.path = dir.join(format!("idle-{index}.toml"));
-            std::fs::write(&node.path, &text).expect("a publication");
-            std::fs::write(heartbeat::beside(&node.path), &beat).expect("a beat");
-        }
-        cluster.read_all();
-        assert!(cluster.nodes.iter().all(|node| node.parses == 1));
-
-        let started = Instant::now();
-        for _ in 0..PASSES {
-            cluster.read_all();
-        }
-        let per_node = started.elapsed() / (PASSES * u32::try_from(NODES).expect("few"));
+        let pass = cluster.idle_pass(&dir, &idle, 100);
         assert!(
-            cluster.nodes.iter().all(|node| node.parses == 1),
+            pass.parsed_once,
             "an idle node's publication is not parsed again"
-        );
-        assert!(
-            per_node < Duration::from_millis(1),
-            "a pass cost {per_node:?} per idle node"
         );
         cluster.stop();
         std::fs::remove_dir_all(&dir).ok();
