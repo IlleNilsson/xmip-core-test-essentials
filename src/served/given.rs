@@ -266,10 +266,27 @@ mod tests {
         let leaf = provision::pem::decode("CERTIFICATE", &chain)
             .expect("the chain")
             .remove(0);
+        // And the web host's listener, which `Start-XmipOperationWeb` has the
+        // same authority issue, is one each node's anchors hold, as the
+        // browser's handshake is checked against (ADR-0009, amendment
+        // 2026-11-02).
+        let place = crate::environment::authority();
+        let host = provision::host::issue_into(
+            &place,
+            &authority_name(&place).expect("named"),
+            "127.0.0.1",
+            &base.join("host"),
+            now,
+        )
+        .expect("the host's certificate");
+        let host = std::fs::read_to_string(host.certificate).expect("read");
+        let host = provision::pem::decode("CERTIFICATE", &host)
+            .expect("the host's chain")
+            .remove(0);
         let tester = runtime::plane::local::running_as().expect("the run's account");
         for path in &nodes {
             assert!(
-                relayed(path, &tester, &leaf),
+                relayed(path, &tester, &leaf, &host),
                 "{} relays the tester",
                 path.display()
             );
@@ -278,9 +295,11 @@ mod tests {
     }
 
     // Whether the node configured at `path` relays for `through` the caller
-    // `leaf` (DER) proves: its own `[operate] relay` and `anchors`, read as
-    // the node reads them, and its own verification.
-    fn relayed(path: &Path, through: &str, leaf: &[u8]) -> bool {
+    // `leaf` (DER) proves, met at the web host's listener `host` (DER): its
+    // own `[operate] relay` and `anchors`, read as the node reads them, and
+    // its own verification of both (`plane::vouched::verified`, as
+    // `plane::possessed` asks it).
+    fn relayed(path: &Path, through: &str, leaf: &[u8], host: &[u8]) -> bool {
         let text = std::fs::read_to_string(path).expect("the node's configuration");
         let table: Table = text.parse().expect("TOML");
         let operate = table["operate"].as_table().expect("[operate]");
@@ -296,8 +315,11 @@ mod tests {
             .join(operate["anchors"].as_str().expect("anchors"));
         let anchors = std::fs::read_to_string(anchors).expect("the node's anchors");
         let relaying = runtime::plane::vouched::Relaying::new(relay, &anchors).expect("relaying");
+        let verified = |certificate: &[u8], usage| {
+            runtime::plane::vouched::verified(&relaying, &[certificate.to_vec()], usage).is_ok()
+        };
         relaying.relays(through)
-            && runtime::plane::vouched::vouch(&relaying, through, leaf)
-                .is_ok_and(|handle| runtime::plane::vouched::unvouch(handle, through))
+            && verified(leaf, authenticate::x509::Usage::ClientAuth)
+            && verified(host, authenticate::x509::Usage::Any)
     }
 }
