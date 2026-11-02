@@ -1,7 +1,7 @@
 //! The fault every fifty seconds, moving across Parties, transports and
 //! streams (ADR-0028, amendments 2026-10-06 and 2026-10-13).
 //!
-//! The owner, 2026-10-06: *All parties has mostly good communication there
+//! The owner, 2026-10-06: *All parties have mostly good communication there
 //! are good and bad days over parties, transports and streams*, and *inject
 //! faults every 50 seconds*, so a one-minute span always shows trouble
 //! somewhere and, paused and widened, the history of it. Each turn of

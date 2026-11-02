@@ -473,7 +473,7 @@ mod tests {
 
     /// The owner, 2026-09-29: *Something is sending streams to a Xmip Node.
     /// A Xmip Node sends streams to somethings.* And 2026-10-13: *You have
-    /// not Implementet more Parties than Party-X.* One box per Party and
+    /// not Implemented more Parties than Party-X.* One box per Party and
     /// side, a link per stage facing it over the Party's own transports,
     /// carrying what the stage counted over them and the worst leaf beneath
     /// them, named by transport.

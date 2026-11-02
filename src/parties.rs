@@ -2,7 +2,7 @@
 //! (ADR-0019; ADR-0028, amendments 2026-10-06 and 2026-10-13).
 //!
 //! The owner, 2026-10-13, watching a run that had one: *You have not
-//! Implementet more Parties than Party-X.* The Parties are the Playground's
+//! Implemented more Parties than Party-X.* The Parties are the Playground's
 //! configuration's `[[parties]]`, read by `configure`'s one reading of them
 //! (`configure::party`); nothing here names one. The [`Spread`] puts each
 //! on its share of the transports in both directions: a Party sends into

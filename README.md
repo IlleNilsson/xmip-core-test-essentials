@@ -324,7 +324,7 @@ node's own reader, never from its command line (ADR-0053, amendment
 
 **Each of the three says which cluster and which node it is** (ADR-0053,
 amendment 2026-09-20). The owner, reading eleven identical rows: *these
-process names does not tell an operator or developer much. … Cluster, Node
+process names do not tell an operator or developer much. … Cluster, Node
 and test suite shall be incorporated in the process name.* So a roll on
 cluster `C1` over nodes `R1`, `P1` and `S1` — names the tester chose, which
 mean nothing to Xmip — is
@@ -556,7 +556,7 @@ Party's endpoints, and its evidence names that leaf's transport.
 
 ### Parties, 2026-10-13
 
-The owner, watching a run: *You have not Implementet more Parties than
+The owner, watching a run: *You have not Implemented more Parties than
 Party-X. It is better, but not good enough.* The Parties are
 `configuration/xmip.toml`'s `[[parties]]` — `Party-A` to `Party-E` as
 shipped, each with its id, a UUIDv7 written once with it, and the

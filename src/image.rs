@@ -2,7 +2,7 @@
 //! instance it is.
 //!
 //! The owner, 2026-09-20, reading `Get-Process Xmip-*` with two clusters up:
-//! *these process names does not tell an operator or developer much. …
+//! *these process names do not tell an operator or developer much. …
 //! Cluster, Node and test suite shall be incorporated in the process name.*
 //! Eleven rows said `xmip-playground-node` six times over and nothing said
 //! which cluster or which node.
