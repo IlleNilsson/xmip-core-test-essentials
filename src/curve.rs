@@ -70,7 +70,7 @@ mod tests {
             record_round(&mut history, node, &snapshot);
         }
 
-        let parsed: toml::Value = history_toml(node, &history).parse().expect("valid TOML");
+        let parsed: toml::Table = history_toml(node, &history).parse().expect("valid TOML");
         let points = parsed["points"].as_array().expect("points");
 
         assert!(!points.is_empty(), "a roll's history file holds points");
@@ -95,7 +95,7 @@ mod tests {
 
         history.record(&schedule.tick());
 
-        let parsed: toml::Value = history_toml(node, &history).parse().expect("valid TOML");
+        let parsed: toml::Table = history_toml(node, &history).parse().expect("valid TOML");
         assert_eq!(
             parsed["points"].as_array().expect("points").as_slice(),
             [] as [toml::Value; 0]

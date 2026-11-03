@@ -115,7 +115,7 @@ mod tests {
         let snapshot = schedule.tick();
 
         let text = roll_toml(&root, &snapshot, None, None, "");
-        let parsed: toml::Value = text.parse().expect("valid TOML");
+        let parsed: toml::Table = text.parse().expect("valid TOML");
 
         assert_eq!(parsed["node"].as_str(), Some(root.as_str()));
         assert_ne!(
@@ -207,7 +207,7 @@ mod tests {
         crate::record_round(&mut history, &root, &schedule.tick());
 
         let text = history_toml(&root, &history);
-        let parsed: toml::Value = text.parse().expect("valid TOML");
+        let parsed: toml::Table = text.parse().expect("valid TOML");
 
         let points = parsed["points"].as_array().expect("points");
         assert_ne!(points.as_slice(), [] as [toml::Value; 0]);

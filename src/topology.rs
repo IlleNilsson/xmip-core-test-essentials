@@ -585,7 +585,7 @@ mod tests {
         let text = roll_toml(&root, &snapshot, Some(topology.clone()), None, "");
         assert!(text.contains("[[topology.nodes]]"));
         assert!(text.contains("[[topology.links]]"));
-        let parsed: toml::Value = text.parse().expect("valid TOML");
+        let parsed: toml::Table = text.parse().expect("valid TOML");
         assert_eq!(
             parsed["topology"]["nodes"].as_array().map(Vec::len),
             Some(topology.nodes.len())

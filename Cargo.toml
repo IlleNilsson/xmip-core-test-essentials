@@ -82,7 +82,7 @@ net = { package = "xmip-core-library-net", git = "https://github.com/IlleNilsson
 tls = { package = "xmip-core-library-tls", git = "https://github.com/IlleNilsson/xmip-core-library-tls", branch = "main" }
 provision = { package = "xmip-core-provision", git = "https://github.com/IlleNilsson/xmip-core-provision", branch = "main" }
 provision_self_signed = { package = "xmip-core-provision-self-signed", git = "https://github.com/IlleNilsson/xmip-core-provision-self-signed", branch = "main" }
-ed25519-dalek = "2"
+ed25519-dalek = "3"
 
 # One technology repository per protocol (ADR-0010), each mounted under the
 # transport capability. The RoundTrip adapters drive these.
@@ -257,7 +257,7 @@ contract_sql = { package = "xmip-core-contract-sql", git = "https://github.com/I
 # estate, JSON is reserved for memory and the wire (the owner's rule). serde
 # derives the shapes; toml serialises them.
 serde = { version = "1", features = ["derive"] }
-toml = "0.8"
+toml = "1"
 
 [features]
 # What the crate's timing program reads of a cluster beyond a roll's surface
