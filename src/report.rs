@@ -1,6 +1,6 @@
 //! Writing a snapshot and its history where a monitoring surface can read them.
 //!
-//! The playground and the readers (the GUI, the CLI) are separate processes;
+//! The essentials and the readers (the GUI, the CLI) are separate processes;
 //! the bridge between them is a file. It is written **atomically** — a temp file
 //! flushed to the device and renamed over the target, by
 //! `observe::publication::write_atomic`, the one writer every publisher
@@ -14,7 +14,7 @@
 //! the activity are `observe::Curve`'s and `observe::Recent`'s the same way.
 //!
 //! **TOML, not JSON.** On disk the estate is TOML — the owner's rule, the same
-//! reason `architecture.json` was deleted for `architecture.toml`; JSON is
+//! reason `architecture.json` was deleted for `architecture.xmip`; JSON is
 //! reserved for what lives in memory or on the wire.
 
 use observe::{Activity, Curve, History, Publication, Recent, Run, Snapshot, Topology};
@@ -30,9 +30,9 @@ struct Handoffs {
     hops: Vec<Hop>,
 }
 
-/// What the Playground calls itself as the publisher at `node`.
+/// What the Essentials calls itself as the publisher at `node`.
 fn source(node: &str) -> String {
-    format!("playground — {node}")
+    format!("essentials — {node}")
 }
 
 /// A roll's snapshot: the records beneath `node`, every count at the scope

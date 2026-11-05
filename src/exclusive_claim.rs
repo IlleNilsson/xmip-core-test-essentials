@@ -32,6 +32,8 @@
 //! an item gone before it could be read, a lane torn down under a straggler —
 //! is a normal outcome, never an error.
 
+#[cfg(feature = "test-support")]
+mod drained;
 mod pickup;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -46,6 +48,9 @@ use crate::standing::{Mark, Standing};
 use crate::stress::{Stress, scaled_rate};
 use observe::now_unix_nanos;
 use pickup::{Processed, Reader, ledger, list, remove_lane, stage_lane};
+
+#[cfg(feature = "test-support")]
+pub use drained::{Drained, drained};
 
 /// Competing reader threads per round.
 const READERS: usize = 4;
@@ -242,7 +247,7 @@ fn duplicated(processed: &[Processed]) -> bool {
 
 /// Judge a round: every item claimed by exactly one holder (the claim), none
 /// missed, and — for Sequential — each key processed in order. A breach the
-/// playground injected says so, so an operator can tell it from a real one.
+/// essentials injected says so, so an operator can tell it from a real one.
 fn judge(style: Style, dropped: usize, processed: &[Processed]) -> Verdict {
     let holders = holders(processed);
 
@@ -304,8 +309,7 @@ fn ordered_per_key(processed: &[Processed]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::report::node_from_toml;
-    use crate::support::{scope, scratch, test_cluster};
+    use crate::support::{scope, scratch};
     use observe::Health;
 
     #[test]
@@ -368,77 +372,5 @@ mod tests {
         assert_eq!(claim().at(Stress::Calm).rate, 0);
         assert_eq!(claim().at(Stress::Realistic).rate, BREACH_RATE);
         assert!(claim().at(Stress::Harsh).rate > BREACH_RATE);
-    }
-
-    /// Two real System Processes over one shared directory: the property
-    /// ADR-0024's claim exists to prove, `O_EXCL` across processes. The test
-    /// stages a lane of a thousand items both nodes find on their first scan,
-    /// so their readers contend for the same items, and judges the ledger
-    /// itself; both nodes' own verdicts must hold as well.
-    #[test]
-    fn two_processes_never_both_claim_the_same_item() {
-        let dir = scratch("two-processes");
-        let shared = dir.join("shared");
-        let contended = shared.join("exclusive-claim/parallel/contended-0");
-        let staging = contended.with_file_name(".contended-0");
-        std::fs::create_dir_all(&staging).expect("staging dir");
-        for n in 0..1_000 {
-            std::fs::write(staging.join(format!("item_0_{n}")), b"x").expect("an item");
-        }
-        std::fs::rename(&staging, &contended).expect("the lane into place");
-        let node = crate::cluster::built_node_binary();
-        let cluster = test_cluster();
-        let names = [0, 1].map(|place| cluster.node(place).name.as_str());
-
-        let children: Vec<std::process::Child> = names
-            .iter()
-            .map(|name| {
-                std::process::Command::new(&node)
-                    .env("XMIP_PLAYGROUND_CLUSTER", &cluster.name)
-                    .args(["--name", name, "--stress", "calm", "--rounds", "4"])
-                    .args(["--interval-ms", "0"])
-                    .arg("--shared")
-                    .arg(&shared)
-                    .arg("--snapshot")
-                    .arg(dir.join(format!("{name}.toml")))
-                    .spawn()
-                    .expect("spawn the node binary")
-            })
-            .collect();
-        for mut child in children {
-            let status = child.wait().expect("wait for the node");
-            assert!(status.success(), "a node exits cleanly: {status}");
-        }
-
-        let processed = ledger(&contended);
-        assert!(list(&contended, "item_").is_empty(), "every item was taken");
-        assert!(!duplicated(&processed), "no item has two holders");
-        assert_eq!(
-            holders(&processed).len(),
-            1_000,
-            "every item has one holder"
-        );
-        let owners: BTreeSet<&str> = processed
-            .iter()
-            .filter_map(|record| record.holder.split_once('-'))
-            .map(|(process, _)| process)
-            .collect();
-        assert_eq!(owners.len(), 2, "both processes took items from the lane");
-
-        for name in names {
-            let text = std::fs::read_to_string(dir.join(format!("{name}.toml"))).expect("snapshot");
-            let (snapshot, _) = node_from_toml(&text).expect("a node's snapshot parses");
-            let scope = scope(&format!("node/{name}/exclusive-claim/file"));
-            for record in snapshot.health(&scope) {
-                assert_eq!(
-                    record.health,
-                    Health::Fine,
-                    "{}: {}",
-                    record.scope,
-                    record.evidence
-                );
-            }
-        }
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

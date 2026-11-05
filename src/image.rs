@@ -4,10 +4,10 @@
 //! The owner, 2026-09-20, reading `Get-Process Xmip-*` with two clusters up:
 //! *these process names do not tell an operator or developer much. …
 //! Cluster, Node and test suite shall be incorporated in the process name.*
-//! Eleven rows said `xmip-playground-node` six times over and nothing said
+//! Eleven rows said `xmip-essentials-node` six times over and nothing said
 //! which cluster or which node.
 //!
-//! The shape is `xmip-playground-<cluster>-roll`, `-cluster` and
+//! The shape is `xmip-essentials-<cluster>-roll`, `-cluster` and
 //! `-node-<name>`: the kind is a marker the shape carries, so a node may be
 //! called anything a file may be called — including `roll` (the owner,
 //! 2026-09-20: *a node is a node and can have one or more roles, roll is
@@ -20,7 +20,7 @@
 //! nodes would turn into eight hundred. A copy is the fallback where a link
 //! cannot be made — another volume, a file system without them.
 //!
-//! The images are device-local and live where `XMIP_PLAYGROUND_IMAGES` says,
+//! The images are device-local and live where `XMIP_ESSENTIALS_IMAGES` says,
 //! which `Start-XmipTest` sets under `.local-work/` (`CONTRIBUTING.md`:
 //! `.local-work` is where). Told nothing, nothing is linked and the base
 //! binary is run under its own name, which is what a roll started by hand and
@@ -33,7 +33,7 @@ use crate::environment::image_directory;
 
 /// What the roll, the cluster and a node are called where no cluster names
 /// them — the names ADR-0053 gave them, which stay the fallback.
-const SUITE: &str = "xmip-playground";
+const SUITE: &str = "xmip-essentials";
 
 /// The word that marks a node, so that what a process is is carried by the
 /// name's own shape rather than by words a node may not be called. The owner,
@@ -41,8 +41,8 @@ const SUITE: &str = "xmip-playground";
 /// something different.*
 const NODE: &str = "node";
 
-/// The process name one instance of the Playground goes by:
-/// `xmip-playground-<cluster>-<what>`, where `what` is `roll`, `cluster` or
+/// The process name one instance of the Essentials goes by:
+/// `xmip-essentials-<cluster>-<what>`, where `what` is `roll`, `cluster` or
 /// `node-<name>`.
 #[must_use]
 pub fn named(cluster: &str, what: &str) -> String {
@@ -50,8 +50,8 @@ pub fn named(cluster: &str, what: &str) -> String {
 }
 
 /// What the node called `name` of `cluster` goes by:
-/// `xmip-playground-<cluster>-node-<name>`. A node called `roll` reads as
-/// `xmip-playground-<cluster>-node-roll` and is nobody's roll, which is why no name
+/// `xmip-essentials-<cluster>-node-<name>`. A node called `roll` reads as
+/// `xmip-essentials-<cluster>-node-roll` and is nobody's roll, which is why no name
 /// has to be forbidden.
 #[must_use]
 pub fn node_named(cluster: &str, name: &str) -> String {
@@ -84,7 +84,7 @@ pub fn refusal(name: &str) -> Option<String> {
 }
 
 /// The image the instance called `what` of `cluster` runs: a hard link to
-/// `base` under the directory `XMIP_PLAYGROUND_IMAGES` names, a copy where a
+/// `base` under the directory `XMIP_ESSENTIALS_IMAGES` names, a copy where a
 /// link cannot be made, and `base` itself where no directory was named.
 ///
 /// An image already there is used as it is, so a node the cluster restarts
@@ -163,11 +163,11 @@ mod tests {
     fn a_name_says_the_suite_the_cluster_and_which_of_the_tree_it_is() {
         let cluster = test_cluster();
         let (c, node) = (cluster.name.as_str(), cluster.node(0).name.as_str());
-        assert_eq!(named(c, "roll"), format!("xmip-playground-{c}-roll"));
-        assert_eq!(named(c, "cluster"), format!("xmip-playground-{c}-cluster"));
+        assert_eq!(named(c, "roll"), format!("xmip-essentials-{c}-roll"));
+        assert_eq!(named(c, "cluster"), format!("xmip-essentials-{c}-cluster"));
         assert_eq!(
             node_named(c, node),
-            format!("xmip-playground-{c}-node-{node}")
+            format!("xmip-essentials-{c}-node-{node}")
         );
         // Every one still answers the owner's one line, Get-Process xmip-*.
         for name in [named(c, "roll"), node_named(c, node)] {
@@ -186,7 +186,7 @@ mod tests {
         assert_eq!(refusal("cluster"), None);
         assert_eq!(
             node_named(c, "roll"),
-            format!("xmip-playground-{c}-node-roll")
+            format!("xmip-essentials-{c}-node-roll")
         );
         assert_ne!(node_named(c, "roll"), named(c, "roll"));
         assert_ne!(node_named(c, "cluster"), named(c, "cluster"));
@@ -209,7 +209,7 @@ mod tests {
     /// own name, which is what a hand-started roll and these tests do.
     #[test]
     fn no_image_directory_is_the_binary_itself() {
-        let base = Path::new("target/debug/xmip-playground-node");
+        let base = Path::new("target/debug/xmip-essentials-node");
         let cluster = test_cluster();
         assert_eq!(
             of_node(base, &cluster.name, &cluster.node(0).name).expect("nothing to do"),
@@ -221,7 +221,7 @@ mod tests {
     /// image. Under cargo that image is the test binary, never the fallback.
     #[test]
     fn a_process_is_called_what_its_image_is_called() {
-        let said = this_process("xmip-playground-node");
+        let said = this_process("xmip-essentials-node");
         let running = std::env::current_exe().expect("a test has an image");
         assert_eq!(
             said,

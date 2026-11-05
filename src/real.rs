@@ -5,7 +5,7 @@
 //!
 //! Only what the operator typed is resolved — the cluster, `-Cluster`, and
 //! the nodes `-Nodes` named (`environment::named`) — through this machine's
-//! own resolver, at the port the cluster's own xmip.toml says the node is
+//! own resolver, at the port the cluster's own cluster.xmip says the node is
 //! operated on. A name that does not resolve is a node the rig spawns, as
 //! before. A name that resolves is not yet trusted: it must answer over its
 //! operate listener, inside Xmip's mutual TLS with the operator certificate
@@ -189,7 +189,7 @@ pub fn found(
     Ok(real)
 }
 
-/// The port the cluster's own xmip.toml says `node` is operated on — the
+/// The port the cluster's own cluster.xmip says `node` is operated on — the
 /// first node it declares where `node` is none of them, or none is named —
 /// as `[operate] listen` says it, read through the configuration's own
 /// slice and reader.
@@ -198,12 +198,12 @@ fn operate_port(cluster: &str, node: Option<&str>) -> Result<String, String> {
     let asked = node
         .filter(|name| declared.iter().any(|one| one == name))
         .or_else(|| declared.first().map(String::as_str))
-        .ok_or("REFUSED: the Playground's xmip.toml declares no node")?;
+        .ok_or("REFUSED: the Essentials' cluster.xmip declares no node")?;
     let document = configure::parse_toml(&configure::slice_named(CLUSTER, asked, cluster)?)?;
     let listen = document
         .operate
         .and_then(|operate| operate.listen)
-        .ok_or_else(|| format!("REFUSED: the Playground's xmip.toml operates {asked} nowhere"))?;
+        .ok_or_else(|| format!("REFUSED: the Essentials' cluster.xmip operates {asked} nowhere"))?;
     listen
         .rsplit_once(':')
         .map(|(_, port)| port.to_string())

@@ -64,7 +64,7 @@ impl Contract {
     }
 }
 
-/// A content contract the playground exercises. Implements the estate's
+/// A content contract the essentials exercises. Implements the estate's
 /// [`ContractTrait`], so the `RoundTrip` test validates an arrived Stream exactly as a
 /// Message on its Journey would.
 pub struct ContentContract {

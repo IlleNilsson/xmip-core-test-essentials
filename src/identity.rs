@@ -7,7 +7,7 @@
 //! authorize what it may do; a Send Location must present an identity to the far
 //! end.
 //!
-//! The playground drives the estate's **real** gates — `identify_transport`,
+//! The essentials drives the estate's **real** gates — `identify_transport`,
 //! `authenticate`, `authorize` — with stand-in implementors, so a fault is a
 //! genuine `Refusal` or `Decision::Denied`, not a fabricated string. The
 //! mechanism is mutual-TLS throughout (ADR-0033's first mechanism). A fault
@@ -82,7 +82,7 @@ impl Step {
     }
 }
 
-/// The identity faults the playground injects, or none. Mirrors `FaultPlan` for
+/// The identity faults the essentials injects, or none. Mirrors `FaultPlan` for
 /// the identity pipeline: certificate-lifecycle and policy faults on the three
 /// Receive steps and on Send presentation. `file` is exempt, so one transport's
 /// identity stays green, exactly as its transport does.

@@ -4,8 +4,8 @@
 //! The owner's rule, 2026-09-11: the tests may use half of the resources
 //! left over by whatever else the machine is doing, and that load is not a
 //! constant. A machine a quarter busy with other work has three quarters
-//! free, and the Playground takes half of that; when the other work grows
-//! to half the machine, the Playground's share falls to a quarter. So the
+//! free, and the Essentials takes half of that; when the other work grows
+//! to half the machine, the Essentials' share falls to a quarter. So the
 //! measure is taken again before every round, and it measures the *others*:
 //! the machine's processor time less what the roll and its cluster's nodes
 //! are burning themselves, or a busy roll would read its own load as someone
@@ -103,7 +103,7 @@ impl Headroom {
         )
     }
 
-    /// Sample processor time over a short window, less the Playground's own.
+    /// Sample processor time over a short window, less the Essentials' own.
     fn measure() -> Self {
         Self::from_free(sample::free_of_others().unwrap_or(1.0))
     }
@@ -114,7 +114,7 @@ impl Headroom {
 #[cfg(windows)]
 mod sample {
     /// The counters: the whole machine, and every process by name. Process
-    /// counters are in percent of one core, so the Playground's own are
+    /// counters are in percent of one core, so the Essentials' own are
     /// summed and divided by the core count before they leave the total.
     pub(super) fn free_of_others() -> Option<f64> {
         let output = std::process::Command::new("typeperf")
@@ -157,7 +157,7 @@ mod sample {
             .nth(1)
             .and_then(|rest| rest.split(')').next())
             .unwrap_or_default();
-        instance.starts_with("xmip-playground-")
+        instance.starts_with("xmip-essentials-")
     }
 
     /// One CSV line of `typeperf` into its quoted fields.

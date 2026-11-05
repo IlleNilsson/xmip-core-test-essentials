@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! The Xmip Playground: the tool that exercises Xmip. ADR-0028.
+//! The Xmip Essentials: the tool that exercises Xmip. ADR-0028.
 //!
 //! It runs the **`RoundTrip` test** — one integration test, over time, across the
 //! whole estate: not a test per protocol or per contract but a single test
@@ -16,7 +16,7 @@
 //! varies under the test.
 //!
 //! Xmip's own transports are the far end, so nothing external is stood up and
-//! the Playground runs on a laptop with no network. Every implemented transport
+//! the Essentials runs on a laptop with no network. Every implemented transport
 //! round-trips today, each as its own far end — the capability's `Loopback`,
 //! written in the technology's crate (ADR-0051) — behind the one
 //! [`RoundTrip`] adapter, so the scenario is one thing over all of them. A

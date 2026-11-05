@@ -1,5 +1,5 @@
 //! The scenarios a roll and its nodes can drive, by the names
-//! `XMIP_PLAYGROUND_SCENARIOS` and the node's `--scenarios` use.
+//! `XMIP_ESSENTIALS_SCENARIOS` and the node's `--scenarios` use.
 //!
 //! One list for both binaries, so the roll and a node cannot disagree on what
 //! a name means. A name neither knows is REFUSED, never dropped: until

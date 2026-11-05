@@ -2,7 +2,7 @@
 //! all workers at once, harsh faults, the level's payload cycling by round.
 //!
 //! ADR-0028. `RoundTrip` asks whether a pair delivered; the storm asks whether
-//! the playground itself keeps its shape while everything is thrown at it at
+//! the essentials itself keeps its shape while everything is thrown at it at
 //! once. It publishes a leaf per pair under `<node>/<transport>/<contract>`
 //! the way `RoundTrip` does, but its subject is four invariants under stress:
 //!
@@ -44,7 +44,7 @@ struct Line {
 }
 
 /// The storm: the whole matrix at a level, driven from the level's workers,
-/// judged on whether the playground kept its invariants under it.
+/// judged on whether the essentials kept its invariants under it.
 pub struct Storm {
     node: String,
     transports: Vec<Box<dyn RoundTrip>>,

@@ -45,7 +45,7 @@ pub(super) fn placed(
 }
 
 /// The cluster's file as the run gives it to the nodes it starts: the
-/// Playground's own with the `bindings` the run placed, each node's roles as
+/// Essentials' own with the `bindings` the run placed, each node's roles as
 /// the run declares them, each Storage node's name resolved to the address
 /// on loopback it serves at, each node its own data folder, its local
 /// endpoint named for the run's cluster, its operate listener on
@@ -148,7 +148,7 @@ pub fn endpoint(cluster: &str, node: &str) -> String {
 }
 
 /// `node`'s configuration, sliced from `text` under `cluster` into a folder
-/// of its own in `area`, with its certificate from the Playground's
+/// of its own in `area`, with its certificate from the Essentials'
 /// authority (`environment::authority`) beside it: the configuration's
 /// path.
 pub(super) fn configured(
@@ -159,7 +159,7 @@ pub(super) fn configured(
     let folder = area.join(node);
     std::fs::create_dir_all(&folder).map_err(|error| format!("{}: {error}", folder.display()))?;
     let sliced = configure::slice_named(text, node, cluster)?;
-    let path = folder.join(format!("{node}.toml"));
+    let path = folder.join(format!("{node}.xmip"));
     std::fs::write(&path, sliced).map_err(|error| format!("{}: {error}", path.display()))?;
     let now = observe::now_unix_nanos() / 1_000_000_000;
     let authority = crate::environment::authority();
@@ -175,8 +175,8 @@ pub(super) fn configured(
     Ok(path)
 }
 
-/// The name the Playground's authority kept in `place` was made under, read
-/// from its certificate: `Initialize-XmipPlaygroundAuthority` alone names
+/// The name the Essentials' authority kept in `place` was made under, read
+/// from its certificate: `Initialize-XmipEssentialsAuthority` alone names
 /// it, and makes it before a run starts any node.
 ///
 /// # Errors
@@ -186,7 +186,7 @@ fn authority_name(place: &Path) -> Result<String, String> {
     let path = place.join(provision::issuer::CERTIFICATE);
     let text = std::fs::read_to_string(&path).map_err(|error| {
         format!(
-            "no Playground authority at {}: {error}; Start-XmipTest makes it",
+            "no Essentials authority at {}: {error}; Start-XmipTest makes it",
             path.display()
         )
     })?;
@@ -195,7 +195,7 @@ fn authority_name(place: &Path) -> Result<String, String> {
         .map_err(|error| format!("{}: {error}", path.display()))?
         .ok_or_else(|| {
             format!(
-                "the Playground's authority at {} names nothing",
+                "the Essentials' authority at {} names nothing",
                 path.display()
             )
         })
@@ -206,9 +206,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn two_runs_issue_their_nodes_under_the_one_playground_authority() {
+    fn two_runs_issue_their_nodes_under_the_one_essentials_authority() {
         // A node that keeps Xmip Storage and one that does not, as the
-        // Playground's own file declares them, and the test cluster's name.
+        // Essentials' own file declares them, and the test cluster's name.
         let roles = configure::cluster::roles(CLUSTER).expect("the file's roles");
         let storage = |node: &&(String, Vec<String>)| node.1.iter().any(|role| role == "storage");
         let declared: Vec<(String, Vec<String>)> = [
@@ -223,7 +223,7 @@ mod tests {
         let now = observe::now_unix_nanos() / 1_000_000_000;
         let issuer = provision::Issuer::kept_or_made(
             &crate::environment::authority(),
-            "Xmip Playground test authority",
+            "Xmip Essentials test authority",
             now,
             3600,
         )
@@ -246,7 +246,7 @@ mod tests {
             }
         }
         let authority = crate::environment::authority().join(provision::issuer::CERTIFICATE);
-        let kept = std::fs::read(authority).expect("the Playground's authority");
+        let kept = std::fs::read(authority).expect("the Essentials' authority");
         assert!(
             anchors.iter().all(|anchor| *anchor == kept),
             "one authority for every run"

@@ -1,4 +1,4 @@
-# The Playground's cluster configuration: one file for a run on one computer
+# The Essentials' cluster configuration: one file for a run on one computer
 # and for the same cluster on machines of its own (the owner, 2026-10-21:
 # *one TOML file that can be run for tests regardless of node faking or
 # actual nodes*; ADR-0028, amendment 2026-10-21). It says what the cluster
@@ -76,10 +76,10 @@ roles = "storage"
 roles = "storage"
 
 # The Parties the cluster trades with (ADR-0019; ADR-0028, amendment
-# 2026-10-13). Each sends into the Playground over its share of the
+# 2026-10-13). Each sends into the Essentials over its share of the
 # transports and is delivered to over another share, presenting the
 # identity written here; the 50-second fault moves across them. Rename them
-# here: nothing in the Playground's code names a Party. Each Party is
+# here: nothing in the Essentials' code names a Party. Each Party is
 # written with its id, a UUIDv7 minted once with it, and each identity
 # with the mechanism that verifies it and what it is for (the owner,
 # 2026-10-19).

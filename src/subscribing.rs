@@ -1,9 +1,9 @@
 //! A node's Subscriptions (ADR-0013, amendments 2026-09-30 and 2026-10-03),
 //! taken up from the TOML configuration it binds, as a real node takes them.
 //!
-//! The Playground's `RoundTrip` test runs the Xmip Applications held as
-//! sections of the Playground's cluster configuration,
-//! `configuration/xmip.toml` — business flows an ERP runs with its Parties —
+//! The Essentials' `RoundTrip` test runs the Xmip Applications held as
+//! sections of the Essentials' cluster configuration,
+//! `configuration/cluster.xmip` — business flows an ERP runs with its Parties —
 //! each Subscription picking up a family of content contracts and routing it
 //! to a Send Port the send stage serves (ADR-0028, amendment 2026-10-13).
 //! A node that declared process writes the cluster's file with the run's
@@ -58,9 +58,9 @@ use crate::ledger_stream::read_whole;
 use crate::roster::Roster;
 use crate::schedule::CONTRACTS;
 
-/// The Playground's cluster configuration, as this repository ships it: the
+/// The Essentials' cluster configuration, as this repository ships it: the
 /// `RoundTrip` Application's section.
-pub const CLUSTER: &str = include_str!("../configuration/xmip.toml");
+pub const CLUSTER: &str = include_str!("../configuration/cluster.xmip");
 
 /// A node's Subscriptions, the runtime's pickup that holds them, and the
 /// node's own Storage node.
@@ -444,7 +444,7 @@ mod tests {
     #[test]
     fn the_configured_subscriptions_route_hold_while_paused_and_survive_a_restart() {
         let shared = scratch("subscribing");
-        let audit = ProgramAudit::new("xmip-playground-subscribing-test", Some(&shared));
+        let audit = ProgramAudit::new("xmip-essentials-subscribing-test", Some(&shared));
         let subscribing = started(&shared, &audit);
 
         let mut snapshot = Snapshot::new();
@@ -467,7 +467,7 @@ mod tests {
             .find(|s| s.name == id)
             .expect("configured");
         assert!(
-            structured.file.ends_with(".node.toml"),
+            structured.file.ends_with(".node.xmip"),
             "{}",
             structured.file
         );

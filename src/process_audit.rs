@@ -1,4 +1,4 @@
-//! What a Playground process audits (ADR-0062 clause 1): the roll, the
+//! What an Essentials process audits (ADR-0062 clause 1): the roll, the
 //! cluster and every node record that they started and stopped, and every
 //! failure that ended one or cost it a round, through `xmip-core-audit`'s
 //! [`ProgramAudit`] — the one place a record is written. Nothing here writes a

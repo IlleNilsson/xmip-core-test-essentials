@@ -64,7 +64,7 @@ impl Roster {
         Ok(Self { nodes })
     }
 
-    /// The roster a cluster's `xmip.toml` declares: the nodes under its
+    /// The roster a cluster's `cluster.xmip` declares: the nodes under its
     /// `[nodes]`, in the order of their names, each declaring the roles its
     /// `roles` says (`configure::cluster::roles`) and nothing where it says
     /// none. The one place a roll's nodes come from (ADR-0056, amendment

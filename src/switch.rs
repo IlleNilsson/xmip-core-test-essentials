@@ -14,7 +14,7 @@
 //! `XMIP_ONLINE=true` is how an operator or a roll says the world is there.
 
 /// Whether the cluster's node called `name` may assume the internet: online
-/// when `XMIP_PLAYGROUND_ONLINE_NODES` names it, else — the variable unset —
+/// when `XMIP_ESSENTIALS_ONLINE_NODES` names it, else — the variable unset —
 /// whatever `XMIP_ONLINE` says for every node.
 #[must_use]
 pub fn node_is_online(name: &str) -> bool {
@@ -28,11 +28,11 @@ pub fn online() -> bool {
 }
 
 /// The cluster's nodes that may assume the internet, by name:
-/// `XMIP_PLAYGROUND_ONLINE_NODES`, comma separated; `None` when unset. Set and
+/// `XMIP_ESSENTIALS_ONLINE_NODES`, comma separated; `None` when unset. Set and
 /// empty means none of them.
 #[must_use]
 pub fn online_nodes() -> Option<Vec<String>> {
-    std::env::var("XMIP_PLAYGROUND_ONLINE_NODES")
+    std::env::var("XMIP_ESSENTIALS_ONLINE_NODES")
         .ok()
         .map(|raw| names(&raw))
 }

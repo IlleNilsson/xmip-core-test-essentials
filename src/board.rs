@@ -17,7 +17,7 @@ use observe::{Health, HealthRecord, Snapshot};
 /// The full board, cleared and reprinted in place — a live terminal view.
 pub fn redraw(node: &str, round: u64, snapshot: &Snapshot) {
     print!("\x1b[2J\x1b[H");
-    println!("Xmip Playground — rolling every scenario   (round {round})");
+    println!("Xmip Essentials — rolling every scenario   (round {round})");
     println!("{:-<86}", "");
 
     for record in pairs(node, snapshot) {

@@ -1,8 +1,8 @@
-//! The Parties the Playground trades with, and which transports each is on
+//! The Parties the Essentials trades with, and which transports each is on
 //! (ADR-0019; ADR-0028, amendments 2026-10-06 and 2026-10-13).
 //!
 //! The owner, 2026-10-13, watching a run that had one: *You have not
-//! Implemented more Parties than Party-X.* The Parties are the Playground's
+//! Implemented more Parties than Party-X.* The Parties are the Essentials'
 //! configuration's `[[parties]]`, read by `configure`'s one reading of them
 //! (`configure::party`); nothing here names one. The [`Spread`] puts each
 //! on its share of the transports in both directions: a Party sends into
@@ -31,7 +31,7 @@ impl Parties {
     ///
     /// # Errors
     /// When the text does not read, a Party is unsound, or none is declared:
-    /// the Playground has no far end without one.
+    /// the Essentials has no far end without one.
     pub fn of(source: &str) -> Result<Self, String> {
         let parties = configure::party::parties(source)?;
         let problems = configure::party::problems(&parties);
@@ -44,7 +44,7 @@ impl Parties {
         Ok(Self { parties })
     }
 
-    /// The Parties of the Playground's own configuration, read once.
+    /// The Parties of the Essentials' own configuration, read once.
     ///
     /// # Panics
     /// When the shipped configuration declares none or an unsound one;
@@ -105,7 +105,7 @@ impl Parties {
         }
     }
 
-    /// These Parties spread over every transport the Playground drives.
+    /// These Parties spread over every transport the Essentials drives.
     #[must_use]
     pub fn over_every_transport(&self) -> Spread {
         let names: Vec<&str> = all_transports(std::env::temp_dir())

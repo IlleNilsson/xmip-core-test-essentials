@@ -9,7 +9,7 @@
 //!
 //! So a roll that recorded only its snapshot left `count_series(node, …)`
 //! with nothing to answer for the node itself, and every history file the
-//! Playground ever published held `points = []` — the CLI's history, the
+//! Essentials ever published held `points = []` — the CLI's history, the
 //! ABI's series and the GUI's curve all drew nothing from it, and nothing
 //! asserted otherwise (found 2026-09-19).
 //!

@@ -1,5 +1,5 @@
 //! A cluster's nodes made idle by hand, and what a pass over them then
-//! costs: what the idle-pass test (`cluster.rs`) and the crate's timing
+//! costs: what the idle-pass test (`tests/spawned`) and the crate's timing
 //! program (`tests/measured`) both read. Behind `test-support`: a test's,
 //! never a roll's.
 
@@ -47,7 +47,7 @@ impl Cluster {
         })
         .expect("a beat serializes");
         for (index, node) in self.nodes.iter_mut().enumerate() {
-            node.path = dir.join(format!("idle-{index}.toml"));
+            node.path = dir.join(format!("idle-{index}.xmip"));
             std::fs::write(&node.path, &text).expect("a publication");
             std::fs::write(heartbeat::beside(&node.path), &beat).expect("a beat");
         }

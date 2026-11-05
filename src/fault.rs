@@ -1,8 +1,8 @@
 //! Injected faults: the world does not run green. ADR-0028.
 //!
-//! Loopback never fails, so a Playground with nothing but loopback proves the
+//! Loopback never fails, so an Essentials with nothing but loopback proves the
 //! transports work and proves nothing about the monitoring — an operator never
-//! sees a red, never drills to it, never watches it recover. So the Playground
+//! sees a red, never drills to it, never watches it recover. So the Essentials
 //! injects faults across the message path — **Receive, Process and Send** — of
 //! the kinds real integrations actually suffer: **transport** errors (a reset, a
 //! timeout, a port in use, a lost datagram), **addressing** errors (an
@@ -99,7 +99,7 @@ impl FaultRule {
     }
 }
 
-/// The faults the Playground injects. Empty by default — a bare `Schedule` runs
+/// The faults the Essentials injects. Empty by default — a bare `Schedule` runs
 /// clean, which the tests rely on — and set to a realistic mix by the runner.
 pub struct FaultPlan {
     rules: Vec<FaultRule>,

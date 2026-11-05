@@ -3,7 +3,7 @@
 //! The declaration is `node::Capability` (ADR-0056): the node's roles, the
 //! evidence it publishes and the entry a run lists it by are written and
 //! read there and nowhere else (open problem 25). What stays here is the
-//! Playground's own: how the cluster tells a node process what it was started
+//! Essentials' own: how the cluster tells a node process what it was started
 //! with, `--role` and `--online`, which `bin/node.rs` reads back through
 //! `Capability::parse`.
 

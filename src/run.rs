@@ -102,7 +102,7 @@ pub fn announced(cluster: &str, stress: Stress, roster: &Roster, spread: &Spread
 }
 
 /// The test a person knows for a scenario: `round-trip` is `RoundTrip`, the
-/// map `Xmip/New-XmipPlaygroundEnvironment.ps1` keeps the other way round.
+/// map `Xmip/New-XmipEssentialsEnvironment.ps1` keeps the other way round.
 fn test_name(scenario: &str) -> String {
     scenario
         .split('-')

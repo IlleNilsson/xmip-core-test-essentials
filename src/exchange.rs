@@ -28,7 +28,7 @@ pub enum Exchange {
     /// It came back. Compare to what was sent.
     Returned(Vec<u8>),
     /// The transport cannot round-trip on its own — one side only, or a shape
-    /// the playground does not drive yet. Yellow, with the reason.
+    /// the essentials does not drive yet. Yellow, with the reason.
     OneSided(String),
     /// The round trip failed. Red, with the reason.
     Failed(String),
@@ -36,7 +36,7 @@ pub enum Exchange {
 
 /// How long any adapter waits on its far end before the round is judged
 /// rather than waited on. The capability's number, so a technology's far end
-/// and the playground agree.
+/// and the essentials agree.
 pub const TIMEOUT: Duration = LOOPBACK_TIMEOUT;
 
 // The adapter retried a retryable failure for one afternoon of 2026-09-21 and

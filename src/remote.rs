@@ -142,7 +142,7 @@ impl Cabinet for PostgresqlCabinet {
             Err(error) => return Filed::Failed(format!("bind failed: {error}")),
         };
         serve_filing(listener, &address, Self::serve, |address| {
-            let store = SqlArchive::<PostgreSql>::new(address, "playground", "xmip")
+            let store = SqlArchive::<PostgreSql>::new(address, "essentials", "xmip")
                 .timing_out_after(TIMEOUT);
             file_through(&store, item)
         })

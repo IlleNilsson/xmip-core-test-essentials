@@ -1,4 +1,4 @@
-//! Roll the playground: run every scenario continuously.
+//! Roll the essentials: run every scenario continuously.
 //!
 //! `cargo run` ticks all four scenarios on an interval and redraws the combined
 //! board each round — the tests as ADR-0028 means them, over time and never
@@ -21,11 +21,11 @@
 //! detail → the failing leaf.
 //!
 //! Pass a number to run that many rounds and stop; omit it to roll until
-//! interrupted. `XMIP_PLAYGROUND_SCENARIOS` names the scenarios to drive, comma
+//! interrupted. `XMIP_ESSENTIALS_SCENARIOS` names the scenarios to drive, comma
 //! separated (`round-trip,heavy-load`); unset, every one rolls, so nothing changed
 //! quietly. Two time limits bound any roll (ADR-0028): a maximum wall-clock
-//! time, `XMIP_PLAYGROUND_MAX_SECONDS`, and a factor on time,
-//! `XMIP_PLAYGROUND_TIME_FACTOR`, which stretches a **simulated clock** — `1.0`
+//! time, `XMIP_ESSENTIALS_MAX_SECONDS`, and a factor on time,
+//! `XMIP_ESSENTIALS_TIME_FACTOR`, which stretches a **simulated clock** — `1.0`
 //! mimics real time, retracted below one runs simulated time faster, so a long
 //! horizon plays out in a short run (three simulated years in fifteen real
 //! minutes is `MAX_SECONDS=900` with `TIME_FACTOR≈9.5e-6`). The round cadence
@@ -34,24 +34,24 @@
 //! When stdout is a terminal the board is redrawn in place; when it is piped,
 //! one summary line per round is appended. After every tick the snapshot,
 //! history and activity are written to the TOML files the monitoring GUI reads,
-//! named for the cluster in `XMIP_PLAYGROUND_AREA` (the temp directory unset);
+//! named for the cluster in `XMIP_ESSENTIALS_AREA` (the temp directory unset);
 //! `roll --publication <cluster> <area>` prints where they are and starts
 //! nothing. Every variable is read in one place, `environment.rs`.
 //!
 //! **The cluster is a process too** (the owner, 2026-09-19). The roll spawns
-//! exactly one `xmip-playground-cluster` process, and that process spawns and
-//! supervises one `xmip-playground-node` per node (ADR-0028 clause 2). The
+//! exactly one `xmip-essentials-cluster` process, and that process spawns and
+//! supervises one `xmip-essentials-node` per node (ADR-0028 clause 2). The
 //! roll merges the one file the cluster publishes into its own snapshot each
 //! round; the board shows the nodes' rollup row, and a node's leaf only when
 //! it is not fine.
 //!
-//! **The nodes are the cluster's `xmip.toml`** (ADR-0056, amendment
+//! **The nodes are `cluster.xmip`** (ADR-0056, amendment
 //! 2026-10-03): `XMIP_TEST_CLUSTER` names the file, and every node under its
 //! `[nodes]` is one process, declaring the roles its `roles` says
 //! (`environment::roster`). `Start-XmipTest` writes the run's file from
 //! `-Cluster`, `-Nodes` and `-NodeRole`, or names the test cluster's where
 //! `-Nodes` was not given; nothing is counted or numbered.
-//! `XMIP_PLAYGROUND_ONLINE_NODES` names the ones among them that may assume
+//! `XMIP_ESSENTIALS_ONLINE_NODES` names the ones among them that may assume
 //! the internet (ADR-0045); unset, every node reads `XMIP_ONLINE`.
 //!
 //! **A node declares its roles** (ADR-0056, amendment 2026-10-01) —
@@ -66,16 +66,16 @@
 //!
 //! **A real node is used where its name resolves** (ADR-0028, amendments
 //! 2026-09-19 and 2026-10-21): the names the operator typed,
-//! `XMIP_PLAYGROUND_NAMED`, and the cluster's, are resolved, and one that
+//! `XMIP_ESSENTIALS_NAMED`, and the cluster's, are resolved, and one that
 //! answers as that node of this cluster over its operate listener, asked
-//! with the operator certificate `XMIP_PLAYGROUND_CERTIFICATE` names, is
+//! with the operator certificate `XMIP_ESSENTIALS_CERTIFICATE` names, is
 //! real — never spawned, configured or stopped, its publication read each
 //! round; one that resolves and does not is REFUSED by name. The cluster
 //! process is given only the simulated nodes, and `[run] real` and the
 //! first lines say which are which (`real.rs`).
 //!
 //! **Every other node is started as `xmip-service`** where the run was
-//! given one, `XMIP_PLAYGROUND_SERVICE`, and one of those nodes declares the
+//! given one, `XMIP_ESSENTIALS_SERVICE`, and one of those nodes declares the
 //! Storage role (ADR-0028, amendment 2026-10-22): the run gives each its
 //! slice, its certificate, its addresses on loopback and its bindings
 //! (`served.rs`), reads it as a real node, and drives it through its Receive
@@ -100,29 +100,29 @@ use std::time::Duration;
 use observe::now_unix_nanos;
 use observe::{History, Run};
 use xaudit::program_audit::ProgramAudit;
-use xmip_core_test_playground::carried::Carried;
-use xmip_core_test_playground::cluster::{Orders, Spawned, cluster_binary, merge};
-use xmip_core_test_playground::drop_box::Dropping;
-use xmip_core_test_playground::environment::{self, max_seconds, time_factor};
-use xmip_core_test_playground::far_end::FarEnd;
-use xmip_core_test_playground::in_process::InProcess;
-use xmip_core_test_playground::operator_orders;
-use xmip_core_test_playground::publication::Publication;
-use xmip_core_test_playground::real::{self, RealNode};
-use xmip_core_test_playground::run::{announced, found};
-use xmip_core_test_playground::scenario::{ROUND_TRIP, drives};
-use xmip_core_test_playground::served::{self, Served};
-use xmip_core_test_playground::{
+use xmip_core_test_essentials::carried::Carried;
+use xmip_core_test_essentials::cluster::{Orders, Spawned, cluster_binary, merge};
+use xmip_core_test_essentials::drop_box::Dropping;
+use xmip_core_test_essentials::environment::{self, max_seconds, time_factor};
+use xmip_core_test_essentials::far_end::FarEnd;
+use xmip_core_test_essentials::in_process::InProcess;
+use xmip_core_test_essentials::operator_orders;
+use xmip_core_test_essentials::publication::Publication;
+use xmip_core_test_essentials::real::{self, RealNode};
+use xmip_core_test_essentials::run::{announced, found};
+use xmip_core_test_essentials::scenario::{ROUND_TRIP, drives};
+use xmip_core_test_essentials::served::{self, Served};
+use xmip_core_test_essentials::{
     Budget, Headroom, Parties, Roster, Spread, Stress, cluster_name, cluster_root,
     cluster_topology, record_round, redraw, started, summarize,
 };
-use xmip_core_test_playground::{image, process_audit};
+use xmip_core_test_essentials::{image, process_audit};
 
 fn main() {
-    // The name is the image's own — xmip-playground-<cluster>-roll where
+    // The name is the image's own — xmip-essentials-<cluster>-roll where
     // Start-XmipTest linked one — so the declaration and the audit say what
     // Get-Process says (ADR-0053, amendment 2026-09-20).
-    let called = image::this_process("xmip-playground-roll");
+    let called = image::this_process("xmip-essentials-roll");
     let audit = ProgramAudit::new(&called, None);
     audit.watch_panics();
 
@@ -175,7 +175,7 @@ fn main() {
     // One cluster per roll (ADR-0028), and since 2026-09-19 a process of its
     // own: it spawns and supervises the nodes and publishes beside this
     // roll's snapshot, which merges that one file each round.
-    let cluster_path = publication.beside(&format!("{cluster}-cluster.toml"));
+    let cluster_path = publication.beside(&format!("{cluster}-cluster.xmip"));
     let orders = Orders::of(stress, simulated.clone(), 0).driving(&chosen);
     let mut spawned = spawn_cluster(&audit, &cluster, &orders, &base, &cluster_path);
 
@@ -219,7 +219,7 @@ fn main() {
         // Every scope's series, and the rollup at the root that the history
         // file is written from: a scenario counts beneath the node, so a roll
         // that recorded only the snapshot published `points = []` for as long
-        // as the Playground has had a history (curve.rs, 2026-09-19).
+        // as the Essentials has had a history (curve.rs, 2026-09-19).
         if let Some(dropping) = dropping.as_mut() {
             dropping.round(root, &mut snapshot, now_unix_nanos());
         }
@@ -438,7 +438,7 @@ fn answered_publication(audit: &ProgramAudit) -> bool {
 }
 
 /// What this process says of itself while it runs (ADR-0053): the roll is
-/// the test over the cluster it starts, and everything the Playground runs
+/// the test over the cluster it starts, and everything the Essentials runs
 /// is test. Every record from here carries the same location, so a reader
 /// knows whose it is (ADR-0062, amendment 2026-09-29). The declaration
 /// stays while what this answers is held.
@@ -552,12 +552,12 @@ fn shared(base: &Path) -> PathBuf {
 fn this_cluster() -> Result<(String, String, PathBuf), String> {
     let Some(cluster) = cluster_name() else {
         return Err(
-            "REFUSED: a roll is a cluster and the owner names it; set XMIP_PLAYGROUND_CLUSTER \
+            "REFUSED: a roll is a cluster and the owner names it; set XMIP_ESSENTIALS_CLUSTER \
              (Start-XmipTest -Cluster <name>). A test spawns nodes, never a cluster."
                 .to_string(),
         );
     };
-    let base = std::env::temp_dir().join("playground").join(&cluster);
+    let base = std::env::temp_dir().join("essentials").join(&cluster);
     std::fs::remove_dir_all(&base).ok();
     Ok((cluster, cluster_root(), base))
 }
@@ -605,9 +605,9 @@ mod tests {
             said,
             format!(
                 "snapshot={}\nhistory={}\nactivity={}",
-                area.join(format!("{cluster}-snapshot.toml")).display(),
-                area.join(format!("{cluster}-history.toml")).display(),
-                area.join(format!("{cluster}-activity.toml")).display()
+                area.join(format!("{cluster}-snapshot.xmip")).display(),
+                area.join(format!("{cluster}-history.xmip")).display(),
+                area.join(format!("{cluster}-activity.xmip")).display()
             )
         );
         let refused = the_publication(&names(&[&cluster])).expect_err("no area");

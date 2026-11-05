@@ -101,7 +101,7 @@ impl Cabinet for MssqlCabinet {
             Err(error) => return Filed::Failed(format!("bind failed: {error}")),
         };
         serve_filing(listener, &address, Self::serve, |address| {
-            let store = SqlArchive::<SqlServer>::new(address, "playground", "xmip")
+            let store = SqlArchive::<SqlServer>::new(address, "essentials", "xmip")
                 .timing_out_after(TIMEOUT);
             file_through(&store, item)
         })
@@ -167,7 +167,7 @@ impl Cabinet for MariaDbCabinet {
         };
         serve_filing(listener, &address, Self::serve, |address| {
             let store =
-                SqlArchive::<MariaDb>::new(address, "playground", "xmip").timing_out_after(TIMEOUT);
+                SqlArchive::<MariaDb>::new(address, "essentials", "xmip").timing_out_after(TIMEOUT);
             file_through(&store, item)
         })
     }

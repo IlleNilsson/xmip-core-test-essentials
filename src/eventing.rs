@@ -35,7 +35,7 @@ use xevent::subscriber::Subscriber;
 
 use crate::process_audit;
 
-/// The Party that hears every Event on a node, as the Playground declares
+/// The Party that hears every Event on a node, as the Essentials declares
 /// it: its identifier and the name an operator reads it by, here and
 /// nowhere else.
 #[must_use]
@@ -70,7 +70,7 @@ pub struct Eventing {
 }
 
 impl Eventing {
-    /// The node at `node` subscribes its two Parties, which the Playground,
+    /// The node at `node` subscribes its two Parties, which the Essentials,
     /// the program hosting the hub, allows by handing the hub its policy:
     /// being in its process admits nobody (ADR-0065, amendment 2026-09-26).
     /// A subscription the hub refused is audited as the failure to
@@ -213,7 +213,7 @@ mod tests {
         let receiving = &cluster.with_role("receiving").name;
         let node = format!("{}/node/{receiving}", cluster.scope());
         let node = node.as_str();
-        let audit = ProgramAudit::new("xmip-playground-eventing-test", Some(&shared));
+        let audit = ProgramAudit::new("xmip-essentials-eventing-test", Some(&shared));
         let mut eventing =
             Eventing::start(node, &Capability::of(&[node::NodeRole::Receiving]), &audit);
 

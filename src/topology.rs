@@ -10,7 +10,7 @@
 //! outside them are drawn by `observe::topology::draw` and
 //! `observe::topology::party`, the one drawing every publisher calls — a
 //! running node draws itself through it too (ADR-0018, amendment
-//! 2026-09-30). The Playground's Parties are its configuration's, each on
+//! 2026-09-30). The Essentials' Parties are its configuration's, each on
 //! its share of the transports on each side (`parties::Spread`; ADR-0028,
 //! amendment 2026-10-13). What
 //! only a roll has is drawn here: between the stages run the handoffs,
@@ -53,7 +53,7 @@ pub fn cluster_topology(
     let names: Vec<&str> = roster.names();
     let root = cluster_root();
     let mut topology = Topology {
-        source: format!("playground — cluster {}", draw::label(&root)),
+        source: format!("essentials — cluster {}", draw::label(&root)),
         observed_unix_nanos: now,
         nodes: draw::members(snapshot, &root, &names),
         links: Vec::new(),

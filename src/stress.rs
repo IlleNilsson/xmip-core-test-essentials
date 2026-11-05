@@ -1,4 +1,4 @@
-//! Difficulty: how hard the playground leans on the estate.
+//! Difficulty: how hard the essentials leans on the estate.
 //!
 //! Loopback never fails, one payload never surprises, one round at a time
 //! never contends. A [`Stress`] level turns each of those up together — the
@@ -6,10 +6,10 @@
 //! a test drives — so a scenario at `Harsh` finds what the same scenario at
 //! `Calm` proves works. The owner, 2026-09-09: *incorporate higher
 //! difficulty, stress on all tests.* How many node processes a cluster
-//! spawns is no level's: they are the nodes the cluster's `xmip.toml`
+//! spawns is no level's: they are the nodes `cluster.xmip`
 //! declares (ADR-0056, amendment 2026-10-03).
 //!
-//! The level is one thing read once — `XMIP_PLAYGROUND_STRESS` for a roll,
+//! The level is one thing read once — `XMIP_ESSENTIALS_STRESS` for a roll,
 //! a constant in a test — so a scenario asks the level for its numbers and
 //! never carries its own idea of "hard". `Realistic` is what every scenario
 //! ran at before the axis existed; it is the default so nothing changed
@@ -41,11 +41,11 @@ impl Stress {
     /// set and names it when it refuses one (ADR-0055).
     pub const NAMES: [&'static str; 4] = ["calm", "realistic", "harsh", "brutal"];
 
-    /// The level a roll runs at: `XMIP_PLAYGROUND_STRESS` as one of the four
+    /// The level a roll runs at: `XMIP_ESSENTIALS_STRESS` as one of the four
     /// names, `realistic` when unset or unrecognized.
     #[must_use]
     pub fn from_env() -> Self {
-        std::env::var("XMIP_PLAYGROUND_STRESS")
+        std::env::var("XMIP_ESSENTIALS_STRESS")
             .ok()
             .and_then(|raw| Self::parse(&raw))
             .unwrap_or(Self::Realistic)

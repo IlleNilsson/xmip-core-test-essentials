@@ -199,7 +199,7 @@ impl Filing {
             identifier: format!("{}-{}", self.round, contract.name()),
             bytes,
             metadata: vec![
-                ("source".to_string(), "playground".to_string()),
+                ("source".to_string(), "essentials".to_string()),
                 ("round".to_string(), self.round.to_string()),
             ],
         }

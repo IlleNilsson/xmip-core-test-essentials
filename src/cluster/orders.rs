@@ -24,14 +24,14 @@ pub struct Orders {
     /// others without asking anyone.
     pub roster: Roster,
     /// The nodes that may assume the internet (ADR-0045). `None` leaves each
-    /// node to `XMIP_PLAYGROUND_ONLINE_NODES` and `XMIP_ONLINE`.
+    /// node to `XMIP_ESSENTIALS_ONLINE_NODES` and `XMIP_ONLINE`.
     pub online: Option<Vec<String>>,
     /// The scenarios every node is told to run; empty means every one.
     pub scenarios: Vec<String>,
     /// Rounds a node runs before it exits on its own; `0` runs until stopped.
     pub rounds: u64,
     /// The cluster these nodes belong to, which each node's image is named
-    /// for — `xmip-playground-<cluster>-node-<node>` (ADR-0053, amendment
+    /// for — `xmip-essentials-<cluster>-node-<node>` (ADR-0053, amendment
     /// 2026-09-20). Empty where nobody said, and then nothing is linked and a
     /// node keeps the binary's own name.
     pub cluster: String,

@@ -15,7 +15,7 @@
 //! small write. Whether a round is done decides nothing about whether the
 //! node is alive.
 //!
-//! The beat is the Playground's: the cluster reads it, no surface does.
+//! The beat is the Essentials': the cluster reads it, no surface does.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -155,7 +155,7 @@ mod tests {
     fn the_first_beat_is_on_disk_when_the_start_returns() {
         let dir = scratch("heartbeat-first");
         std::fs::create_dir_all(&dir).expect("the scratch directory");
-        let path = dir.join("node.toml");
+        let path = dir.join("node.xmip");
         // How soon `start` returns is the timing program's (tests/measured).
         let heart = Heartbeat::start(&path, Duration::from_secs(60));
         assert_eq!(read(&path).rounds, 0, "beating before its first round");
@@ -168,7 +168,7 @@ mod tests {
     #[test]
     fn a_node_beats_between_rounds_and_counts_them() {
         let dir = scratch("heartbeat");
-        let path = dir.join("node.toml");
+        let path = dir.join("node.xmip");
         let heart = Heartbeat::start(&path, Duration::from_millis(20));
         let first = read(&path);
         std::thread::sleep(Duration::from_millis(200));

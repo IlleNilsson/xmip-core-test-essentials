@@ -1,4 +1,4 @@
-//! What the Playground's far ends ask of a login: the password a node
+//! What the Essentials' far ends ask of a login: the password a node
 //! presents proven by `authenticate/password`, and a key whose signature
 //! the server verified held to its user by `authenticate/ssh-key` — the
 //! gates a Receive Location's own are — handed to Xmip's SSH and FTP

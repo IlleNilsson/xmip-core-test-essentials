@@ -10,7 +10,7 @@
 //! publishes, which is the same bridge a cluster reads its nodes over
 //! (ADR-0027 decision 8): a node answers for itself, and whoever asks
 //! assembles the view. The roll merges that file into the snapshot it
-//! publishes, so `<Cluster>-snapshot.toml` keeps its path and its shape.
+//! publishes, so `<Cluster>-snapshot.xmip` keeps its path and its shape.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -48,7 +48,7 @@ impl Spawned {
     /// `path`, spawning the nodes `orders` names.
     ///
     /// The cluster's scope root is `xmip:///<cluster>`, which it reads from
-    /// `XMIP_PLAYGROUND_CLUSTER` as its nodes do, so it is set on the child
+    /// `XMIP_ESSENTIALS_CLUSTER` as its nodes do, so it is set on the child
     /// here and inherited all the way down.
     ///
     /// # Errors
@@ -62,13 +62,13 @@ impl Spawned {
         path: &Path,
     ) -> io::Result<Self> {
         std::fs::create_dir_all(shared)?;
-        // The image says which cluster this is: xmip-playground-<cluster>-cluster
-        // rather than one more xmip-playground-cluster row (ADR-0053,
+        // The image says which cluster this is: xmip-essentials-<cluster>-cluster
+        // rather than one more xmip-essentials-cluster row (ADR-0053,
         // amendment 2026-09-20).
         let image = crate::image::of(binary, cluster, "cluster")?;
         let mut command = Command::new(image);
         command
-            .env("XMIP_PLAYGROUND_CLUSTER", cluster)
+            .env("XMIP_ESSENTIALS_CLUSTER", cluster)
             .args(["--name", cluster, "--stress", orders.stress.name()])
             // Each node with what it was declared with, never its name alone.
             .args(["--nodes", &orders.roster.text()])
@@ -176,75 +176,5 @@ impl Drop for Spawned {
     /// under it: the cluster is asked first, so it stops its own.
     fn drop(&mut self) {
         self.stop();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::cluster::built_cluster_binary;
-    use crate::stress::Stress;
-    use crate::support::{path, path_roster, scratch, test_cluster};
-
-    /// The tree the owner asked for: the test spawns a cluster, the cluster
-    /// spawns its nodes, each publishes, and the roll's half reads one file.
-    #[test]
-    fn a_spawned_cluster_publishes_its_nodes_and_stops_them_with_itself() {
-        let dir = scratch("spawned");
-        let test = test_cluster();
-        let [receiving, processing, sending] = path(&test);
-        let roster = crate::Roster::parse(&path_roster(&test)).expect("a well-formed roster");
-        let orders = Orders::of(Stress::Calm, roster, 0)
-            .driving(&["round-trip".to_string()])
-            .with_online(Some(vec![receiving.to_string()]));
-        let published_to = dir.join(format!("{}-cluster.toml", test.name));
-        let mut cluster = Spawned::start(
-            &built_cluster_binary(),
-            &test.name,
-            &orders,
-            &dir.join("shared"),
-            &published_to,
-        )
-        .expect("the cluster process starts");
-
-        let root = test.scope();
-        let mut published = false;
-        for _ in 0..40 {
-            let snapshot = cluster.tick();
-            published = !snapshot
-                .health(&format!("{root}/node/{sending}/send"))
-                .is_empty();
-            if published {
-                break;
-            }
-        }
-        assert!(
-            published,
-            "{sending} published its send stage through the cluster"
-        );
-
-        let snapshot = cluster.tick();
-        for name in [receiving, processing, sending] {
-            let process = format!("{root}/node/{name}/system-process");
-            assert!(
-                !snapshot.health(&process).is_empty(),
-                "the cluster says whether {name} is alive"
-            );
-        }
-        assert!(
-            !snapshot.health(&format!("{root}/node")).is_empty(),
-            "the cluster adds the rollup its surface owes"
-        );
-        let links: Vec<(&str, &str)> = cluster
-            .hops()
-            .iter()
-            .map(|hop| (hop.from.as_str(), hop.to.as_str()))
-            .collect();
-        assert!(links.contains(&(receiving, processing)), "{links:?}");
-        assert!(links.contains(&(processing, sending)), "{links:?}");
-
-        cluster.stop();
-        assert!(!cluster.alive(), "the cluster left when it was asked");
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

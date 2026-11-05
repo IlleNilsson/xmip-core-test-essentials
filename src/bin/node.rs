@@ -61,7 +61,7 @@
 //! standing changed, and publishes what its hub holds with its snapshot.
 //!
 //! **It routes by its Subscriptions** (ADR-0013, amendment 2026-09-30;
-//! `subscribing.rs`): a node whose roles serve process binds the Playground's
+//! `subscribing.rs`): a node whose roles serve process binds the Essentials'
 //! `RoundTrip` Application as a real node binds one, routes what its process
 //! stage hands on through its Subscriptions, and publishes them with its
 //! snapshot. It takes the orders an operator left for it under
@@ -87,18 +87,18 @@ use node::Capability;
 use observe::Snapshot;
 use observe::publication::write_atomic;
 use xaudit::program_audit::ProgramAudit;
-use xmip_core_test_playground::cluster::merge;
-use xmip_core_test_playground::eventing::Eventing;
-use xmip_core_test_playground::operator_orders;
-use xmip_core_test_playground::scenario::{
+use xmip_core_test_essentials::cluster::merge;
+use xmip_core_test_essentials::eventing::Eventing;
+use xmip_core_test_essentials::operator_orders;
+use xmip_core_test_essentials::scenario::{
     self, DAILY_BACKLOG, EXCLUSIVE_CLAIM, ROUND_TRIP, drives,
 };
-use xmip_core_test_playground::subscribing::Subscribing;
-use xmip_core_test_playground::{
+use xmip_core_test_essentials::subscribing::Subscribing;
+use xmip_core_test_essentials::{
     DailyBacklog, ExclusiveClaim, Heartbeat, Relay, Roster, Stress, cluster_name, cluster_root,
     node_toml,
 };
-use xmip_core_test_playground::{image, process_audit};
+use xmip_core_test_essentials::{image, process_audit};
 
 /// What the command line said.
 struct Arguments {
@@ -127,7 +127,7 @@ const USAGE: &str = "usage: node --name <name> --shared <dir> --stress <level> -
      [--role receiving,processing] [--nodes <name[=role+role],...>] \
      [--scenarios <scenarios>]\n\
      example: node --name R1 --shared shared --stress calm --rounds 0 \
-     --snapshot R1.toml --role receiving\n\
+     --snapshot R1.xmip --role receiving\n\
      The name is the tester's and means nothing to Xmip; --role says what the node is for.";
 
 /// What the node can do, recorded each round: its switch, offline in the
@@ -153,7 +153,7 @@ fn refused_without_cluster(audit: &ProgramAudit) -> Option<ExitCode> {
         return None;
     }
     let problem = "REFUSED: a node is of a cluster, and none is named; the cluster \
-                   that spawns it sets XMIP_PLAYGROUND_CLUSTER.";
+                   that spawns it sets XMIP_ESSENTIALS_CLUSTER.";
     process_audit::fail(audit, "start", &format!("node: {problem}"));
     eprintln!("{problem}");
     Some(ExitCode::from(2))
@@ -170,10 +170,10 @@ fn main() -> ExitCode {
         .ok()
         .map(|arguments| Heartbeat::start(&arguments.snapshot, arguments.beat));
 
-    // The name is the image's own — xmip-playground-<cluster>-node-<node>
+    // The name is the image's own — xmip-essentials-<cluster>-node-<node>
     // where a cluster named it — so the declaration, the audit and the
     // process list agree (ADR-0053, amendment 2026-09-20).
-    let called = image::this_process("xmip-playground-node");
+    let called = image::this_process("xmip-essentials-node");
     let audit = ProgramAudit::new(&called, None);
     audit.watch_panics();
 
@@ -401,7 +401,7 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Arguments, String> {
             "--interval-ms" => interval = Duration::from_millis(number(&flag, &value)?),
             "--beat-ms" => beat = Duration::from_millis(number(&flag, &value)?.max(1)),
             "--online" => {
-                online = xmip_core_test_playground::switch::parse(&value)
+                online = xmip_core_test_essentials::switch::parse(&value)
                     .ok_or(format!("--online wants true or false, not {value}"))?;
             }
             "--role" => role = Capability::parse(&value)?,
@@ -458,7 +458,7 @@ mod tests {
 
     fn arguments(extra: &[&str]) -> Result<Arguments, String> {
         let [name, ..] = path();
-        let snapshot = format!("{name}.toml");
+        let snapshot = format!("{name}.xmip");
         let required = [
             "--name",
             &name,

@@ -4,23 +4,25 @@
 //! observe's, `observe::now_unix_nanos`.
 
 /// The cluster a roll is (ADR-0028), by the name the owner gave it in
-/// `XMIP_PLAYGROUND_CLUSTER`; `None` when nobody named one. A test may spawn
+/// `XMIP_ESSENTIALS_CLUSTER`; `None` when nobody named one. A test may spawn
 /// nodes, never a cluster (the owner, 2026-09-14; ADR-0052), so the binaries
 /// refuse to start without a name rather than inventing one. A roll's nodes
 /// inherit the variable, so the roll and every node agree on the root without
 /// being told twice. This crate's own tests run in the test cluster, by the
-/// name its `xmip.toml` gives it.
+/// name its `cluster.xmip` gives it.
 #[must_use]
 pub fn cluster_name() -> Option<String> {
-    std::env::var("XMIP_PLAYGROUND_CLUSTER")
+    std::env::var("XMIP_ESSENTIALS_CLUSTER")
         .ok()
         .map(|name| name.trim().to_string())
         .filter(|name| !name.is_empty())
         .or_else(test_cluster_name)
 }
 
-/// The test cluster's name (`configure::fixture`), read once.
-#[cfg(test)]
+/// The test cluster's name (`configure::fixture`), read once: in this
+/// crate's tests, and in its programs that spawn its binaries
+/// (`test-support`).
+#[cfg(any(test, feature = "test-support"))]
 #[allow(
     clippy::unnecessary_wraps,
     reason = "the same signature as the variant outside tests, which has none"
@@ -34,7 +36,7 @@ fn test_cluster_name() -> Option<String> {
 }
 
 /// Outside this crate's tests nobody names a cluster but the owner.
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "test-support")))]
 fn test_cluster_name() -> Option<String> {
     None
 }
@@ -140,7 +142,7 @@ pub(crate) fn files_whole(cabinet: &dyn crate::cabinet::Cabinet) {
             data_type: "bytes".to_string(),
             identifier: format!("{n}-bytes"),
             bytes,
-            metadata: vec![("source".to_string(), "playground".to_string())],
+            metadata: vec![("source".to_string(), "essentials".to_string())],
         };
         assert_eq!(
             cabinet.file(item.clone()),

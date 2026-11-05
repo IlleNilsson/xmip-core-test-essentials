@@ -39,7 +39,7 @@ pub use tally::Tally;
 use workers::drive_selected;
 pub(crate) use workers::{all_pairs, drive_each, drive_pairs, slice};
 
-/// Every contract the playground exercises today: the three local shapes and
+/// Every contract the essentials exercises today: the three local shapes and
 /// every contract technology the estate has landed. ADR-0028's matrix is every
 /// transport by every one of these.
 pub const CONTRACTS: [Contract; 20] = [

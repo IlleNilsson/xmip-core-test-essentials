@@ -76,7 +76,7 @@ impl Authorizer for LocationPolicy {
     // impl cannot widen the lifetime the trait elided.
     #[allow(clippy::unnecessary_literal_bound)]
     fn name(&self) -> &str {
-        "playground-location"
+        "essentials-location"
     }
 
     fn layer(&self) -> Layer {
@@ -88,7 +88,7 @@ impl Authorizer for LocationPolicy {
             Decision::Allowed
         } else {
             Decision::denied(
-                "playground-location",
+                "essentials-location",
                 format!("the party is not permitted to {} here", attempt.action),
             )
         })

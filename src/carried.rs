@@ -2,7 +2,7 @@
 //! them to what Xmip promises — an accepted Message is never lost — over the
 //! wire to Xmip Storage (ADR-0028, amendments 2026-10-22). Each round it
 //! drops a file into each Receive Location placed (`configure::placed`),
-//! the next of the Playground's content contracts each time, under a name
+//! the next of the Essentials' content contracts each time, under a name
 //! its contract's name begins (`Contract::file_name`), which the cluster's
 //! Subscriptions route by to a Send Port another node sends; the file
 //! arrives where that Send Port is placed, under its name. The receiving
