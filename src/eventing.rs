@@ -182,7 +182,7 @@ impl Eventing {
         } else {
             Outcome::Success
         };
-        hub.publish(
+        let _ = hub.publish(
             Event::completed(stage, outcome, at)
                 .saying("pairs", records.len().to_string())
                 .saying("failing", failing.to_string()),
