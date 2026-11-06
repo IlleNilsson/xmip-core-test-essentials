@@ -160,12 +160,15 @@ pub(super) fn configured(
     std::fs::create_dir_all(&folder).map_err(|error| format!("{}: {error}", folder.display()))?;
     let sliced = configure::slice_named(text, node, cluster)?;
     let path = folder.join(format!("{node}.xmip"));
-    std::fs::write(&path, sliced).map_err(|error| format!("{}: {error}", path.display()))?;
     let now = observe::now_unix_nanos() / 1_000_000_000;
     let authority = crate::environment::authority();
+    let name = authority_name(&authority)?;
+    let issuer = provision::host::authority(&authority, &name, now)
+        .map_err(|error| format!("the Essentials' authority: {error}"))?;
+    runtime::signed::delivered(&path, &issuer, text, &sliced)?;
     provision::node::issue_into(
         &authority,
-        &authority_name(&authority)?,
+        &name,
         node,
         &["127.0.0.1".to_string(), "localhost".to_string()],
         &folder.join("tls"),

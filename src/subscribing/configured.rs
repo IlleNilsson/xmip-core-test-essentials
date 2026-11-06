@@ -63,6 +63,7 @@ pub(super) fn configured(
         format!("{CLUSTER}\n{bound}\n[nodes.{name}.service]\nname = \"xmip-essentials-{name}\"\n");
     let text = configure::slice_named(&file, name, cluster)?;
     let path = directory.join(format!("{name}.node.xmip"));
-    std::fs::write(&path, &text).map_err(|error| format!("{}: {error}", path.display()))?;
+    let signed = runtime::signed::signed_beside(&path, cluster, &file, &text)?;
+    std::fs::write(&path, signed).map_err(|error| format!("{}: {error}", path.display()))?;
     Ok(path)
 }
