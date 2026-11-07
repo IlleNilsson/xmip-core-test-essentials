@@ -12,7 +12,7 @@
 //! is on both sides. Each stream of a transport — each content contract — is
 //! that Party's. The identity a Party presents is its first.
 
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 
 use configure::PartyConfiguration;
 use xcore::{PartyId, Purpose};
@@ -51,8 +51,9 @@ impl Parties {
     /// `the_shipped_configuration_declares_sound_parties` holds it.
     #[must_use]
     pub fn configured() -> &'static Self {
-        static READ: OnceLock<Parties> = OnceLock::new();
-        READ.get_or_init(|| Self::of(CLUSTER).expect("the shipped [[parties]] read"))
+        static READ: LazyLock<Parties> =
+            LazyLock::new(|| Parties::of(CLUSTER).expect("the shipped [[parties]] read"));
+        &READ
     }
 
     /// Every Party, in the order written.

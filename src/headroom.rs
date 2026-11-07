@@ -109,118 +109,122 @@ impl Headroom {
     }
 }
 
-/// The platform's reading of what others use. Each returns the fraction of
-/// the machine free of other work, or `None` where it cannot be read.
-#[cfg(windows)]
-mod sample {
-    /// The counters: the whole machine, and every process by name. Process
-    /// counters are in percent of one core, so the Essentials' own are
-    /// summed and divided by the core count before they leave the total.
-    pub(super) fn free_of_others() -> Option<f64> {
-        let output = std::process::Command::new("typeperf")
-            .args([
-                r"\Processor(_Total)\% Processor Time",
-                r"\Process(*)\% Processor Time",
-                "-sc",
-                "2",
-                "-si",
-                "1",
-            ])
-            .output()
-            .ok()?;
-        let text = String::from_utf8_lossy(&output.stdout);
-        let mut lines = text.lines().filter(|line| line.starts_with('"'));
-        let header: Vec<String> = fields(lines.next()?);
-        let last: Vec<String> = fields(lines.next_back()?);
-        let cores = std::thread::available_parallelism().map_or(1, usize::from);
-        let mut total = None;
-        let mut own = 0.0;
-        for (name, value) in header.iter().zip(&last) {
-            let Ok(percent) = value.parse::<f64>() else {
-                continue;
-            };
-            if name.contains(r"\Processor(_Total)\") {
-                total = Some(percent);
-            } else if is_ours(name) {
-                own += percent;
+cfg_select! {
+    windows => {
+        /// The platform's reading of what others use. Each returns the
+        /// fraction of the machine free of other work, or `None` where it
+        /// cannot be read.
+        mod sample {
+            /// The counters: the whole machine, and every process by name. Process
+            /// counters are in percent of one core, so the Essentials' own are
+            /// summed and divided by the core count before they leave the total.
+            pub(super) fn free_of_others() -> Option<f64> {
+                let output = std::process::Command::new("typeperf")
+                    .args([
+                        r"\Processor(_Total)\% Processor Time",
+                        r"\Process(*)\% Processor Time",
+                        "-sc",
+                        "2",
+                        "-si",
+                        "1",
+                    ])
+                    .output()
+                    .ok()?;
+                let text = String::from_utf8_lossy(&output.stdout);
+                let mut lines = text.lines().filter(|line| line.starts_with('"'));
+                let header: Vec<String> = fields(lines.next()?);
+                let last: Vec<String> = fields(lines.next_back()?);
+                let cores = std::thread::available_parallelism().map_or(1, usize::from);
+                let mut total = None;
+                let mut own = 0.0;
+                for (name, value) in header.iter().zip(&last) {
+                    let Ok(percent) = value.parse::<f64>() else {
+                        continue;
+                    };
+                    if name.contains(r"\Processor(_Total)\") {
+                        total = Some(percent);
+                    } else if is_ours(name) {
+                        own += percent;
+                    }
+                }
+                #[allow(clippy::cast_precision_loss)]
+                let others = (total? - own / cores as f64).max(0.0);
+                Some((1.0 - others / 100.0).clamp(0.0, 1.0))
+            }
+
+            /// The counters of the roll and of its nodes, by process name.
+            fn is_ours(counter: &str) -> bool {
+                let instance = counter
+                    .split(r"\Process(")
+                    .nth(1)
+                    .and_then(|rest| rest.split(')').next())
+                    .unwrap_or_default();
+                instance.starts_with("xmip-essentials-")
+            }
+
+            /// One CSV line of `typeperf` into its quoted fields.
+            fn fields(line: &str) -> Vec<String> {
+                line.split("\",\"")
+                    .map(|field| field.trim_matches('"').to_string())
+                    .collect()
             }
         }
-        #[allow(clippy::cast_precision_loss)]
-        let others = (total? - own / cores as f64).max(0.0);
-        Some((1.0 - others / 100.0).clamp(0.0, 1.0))
     }
+    target_os = "linux" => {
+        /// The platform's reading of what others use.
+        mod sample {
+            use std::time::Duration;
 
-    /// The counters of the roll and of its nodes, by process name.
-    fn is_ours(counter: &str) -> bool {
-        let instance = counter
-            .split(r"\Process(")
-            .nth(1)
-            .and_then(|rest| rest.split(')').next())
-            .unwrap_or_default();
-        instance.starts_with("xmip-essentials-")
-    }
+            pub(super) fn free_of_others() -> Option<f64> {
+                let (first, own_first) = (cpu_line()?, own_ticks());
+                std::thread::sleep(Duration::from_millis(500));
+                let (second, own_second) = (cpu_line()?, own_ticks());
+                let total: u64 = second.iter().sum::<u64>().checked_sub(first.iter().sum())?;
+                let idle = second.get(3)?.checked_sub(*first.get(3)?)?;
+                let own = own_second.saturating_sub(own_first);
+                if total == 0 {
+                    return None;
+                }
+                #[allow(clippy::cast_precision_loss)]
+                Some(((idle + own) as f64 / total as f64).clamp(0.0, 1.0))
+            }
 
-    /// One CSV line of `typeperf` into its quoted fields.
-    fn fields(line: &str) -> Vec<String> {
-        line.split("\",\"")
-            .map(|field| field.trim_matches('"').to_string())
-            .collect()
-    }
-}
+            /// The aggregate `cpu` line of `/proc/stat` as its counters.
+            fn cpu_line() -> Option<Vec<u64>> {
+                let stat = std::fs::read_to_string("/proc/stat").ok()?;
+                let line = stat.lines().find(|line| line.starts_with("cpu "))?;
+                Some(
+                    line.split_whitespace()
+                        .skip(1)
+                        .filter_map(|field| field.parse().ok())
+                        .collect(),
+                )
+            }
 
-/// The platform's reading of what others use.
-#[cfg(target_os = "linux")]
-mod sample {
-    use std::time::Duration;
+            /// This process's user and system ticks; the cluster's nodes are read the
+            /// same way where they are this process's children.
+            fn own_ticks() -> u64 {
+                let stat = std::fs::read_to_string("/proc/self/stat").unwrap_or_default();
+                let after_name = stat.rsplit(national_close()).next().unwrap_or_default();
+                let fields: Vec<&str> = after_name.split_whitespace().collect();
+                let user: u64 = fields.get(11).and_then(|f| f.parse().ok()).unwrap_or(0);
+                let system: u64 = fields.get(12).and_then(|f| f.parse().ok()).unwrap_or(0);
+                user + system
+            }
 
-    pub(super) fn free_of_others() -> Option<f64> {
-        let (first, own_first) = (cpu_line()?, own_ticks());
-        std::thread::sleep(Duration::from_millis(500));
-        let (second, own_second) = (cpu_line()?, own_ticks());
-        let total: u64 = second.iter().sum::<u64>().checked_sub(first.iter().sum())?;
-        let idle = second.get(3)?.checked_sub(*first.get(3)?)?;
-        let own = own_second.saturating_sub(own_first);
-        if total == 0 {
-            return None;
+            /// The character that closes the command name in `/proc/self/stat`.
+            const fn national_close() -> char {
+                ')'
+            }
         }
-        #[allow(clippy::cast_precision_loss)]
-        Some(((idle + own) as f64 / total as f64).clamp(0.0, 1.0))
     }
-
-    /// The aggregate `cpu` line of `/proc/stat` as its counters.
-    fn cpu_line() -> Option<Vec<u64>> {
-        let stat = std::fs::read_to_string("/proc/stat").ok()?;
-        let line = stat.lines().find(|line| line.starts_with("cpu "))?;
-        Some(
-            line.split_whitespace()
-                .skip(1)
-                .filter_map(|field| field.parse().ok())
-                .collect(),
-        )
-    }
-
-    /// This process's user and system ticks; the cluster's nodes are read the
-    /// same way where they are this process's children.
-    fn own_ticks() -> u64 {
-        let stat = std::fs::read_to_string("/proc/self/stat").unwrap_or_default();
-        let after_name = stat.rsplit(national_close()).next().unwrap_or_default();
-        let fields: Vec<&str> = after_name.split_whitespace().collect();
-        let user: u64 = fields.get(11).and_then(|f| f.parse().ok()).unwrap_or(0);
-        let system: u64 = fields.get(12).and_then(|f| f.parse().ok()).unwrap_or(0);
-        user + system
-    }
-
-    /// The character that closes the command name in `/proc/self/stat`.
-    const fn national_close() -> char {
-        ')'
-    }
-}
-
-/// Not read on this platform: the machine is taken as free.
-#[cfg(not(any(windows, target_os = "linux")))]
-mod sample {
-    pub(super) fn free_of_others() -> Option<f64> {
-        None
+    _ => {
+        /// Not read on this platform: the machine is taken as free.
+        mod sample {
+            pub(super) fn free_of_others() -> Option<f64> {
+                None
+            }
+        }
     }
 }
 

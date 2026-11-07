@@ -328,10 +328,10 @@ impl Subscribing {
 /// the machine's key store — DPAPI on Windows, a private file elsewhere.
 fn storage(shared: &Path, name: &str) -> Result<Arc<dyn XmipStorage>, String> {
     let keys = shared.join("keys").join(name);
-    #[cfg(windows)]
-    let keys = Held::new(secret_dpapi::Dpapi::new(keys));
-    #[cfg(not(windows))]
-    let keys = Held::new(secret_file::KeyFile::new(keys));
+    let keys = cfg_select! {
+        windows => Held::new(secret_dpapi::Dpapi::new(keys)),
+        _ => Held::new(secret_file::KeyFile::new(keys)),
+    };
     let kek = KekName::new(runtime::storage::KEK).map_err(|error| error.to_string())?;
     let directory = shared.join("storage").join(name);
     std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;

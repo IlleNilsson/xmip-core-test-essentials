@@ -19,26 +19,27 @@ pub fn cluster_name() -> Option<String> {
         .or_else(test_cluster_name)
 }
 
-/// The test cluster's name (`configure::fixture`), read once: in this
-/// crate's tests, and in its programs that spawn its binaries
-/// (`test-support`).
-#[cfg(any(test, feature = "test-support"))]
-#[allow(
-    clippy::unnecessary_wraps,
-    reason = "the same signature as the variant outside tests, which has none"
-)]
-fn test_cluster_name() -> Option<String> {
-    static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    Some(
-        NAME.get_or_init(|| configure::fixture::test_cluster().name)
-            .clone(),
-    )
-}
-
-/// Outside this crate's tests nobody names a cluster but the owner.
-#[cfg(not(any(test, feature = "test-support")))]
-fn test_cluster_name() -> Option<String> {
-    None
+cfg_select! {
+    any(test, feature = "test-support") => {
+        /// The test cluster's name (`configure::fixture`), read once: in this
+        /// crate's tests, and in its programs that spawn its binaries
+        /// (`test-support`).
+        #[allow(
+            clippy::unnecessary_wraps,
+            reason = "the same signature as the variant outside tests, which has none"
+        )]
+        fn test_cluster_name() -> Option<String> {
+            static NAME: std::sync::LazyLock<String> =
+                std::sync::LazyLock::new(|| configure::fixture::test_cluster().name);
+            Some(NAME.clone())
+        }
+    }
+    _ => {
+        /// Outside this crate's tests nobody names a cluster but the owner.
+        fn test_cluster_name() -> Option<String> {
+            None
+        }
+    }
 }
 
 /// The scope root every record in this cluster hangs under,

@@ -94,7 +94,7 @@ pub(crate) fn large_payload(contract: Contract, target: usize) -> Vec<u8> {
 /// so the interchange stays sound at any size.
 fn large_x12(target: usize) -> Vec<u8> {
     use std::fmt::Write as _;
-    let probe = String::from_utf8_lossy(crate::verdict::X12_PROBE).into_owned();
+    let probe = String::from_utf8_lossy(crate::verdict::X12_PROBE);
     let (head, _) = probe
         .split_once("SE*4*0001~")
         .expect("the probe closes its set");
@@ -184,7 +184,7 @@ pub fn as_stream(contract: Contract, bytes: Vec<u8>) -> Stream {
 /// reference still landing.
 fn large_wsdl(target: usize) -> Vec<u8> {
     use std::fmt::Write as _;
-    let probe = String::from_utf8_lossy(crate::verdict::WSDL_PROBE).into_owned();
+    let probe = String::from_utf8_lossy(crate::verdict::WSDL_PROBE);
     let (head, tail) = probe
         .split_once("<portType")
         .expect("the probe has a port type");

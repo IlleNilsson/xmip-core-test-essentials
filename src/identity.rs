@@ -297,6 +297,7 @@ fn not_reached(after: Step) -> Outcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::assert_matches;
 
     /// The configuration's Party at `place`.
     fn facing(place: usize) -> Facing<'static> {
@@ -375,8 +376,9 @@ mod tests {
             {
                 seen_stop = true;
                 for (_, outcome) in &steps[index + 1..] {
-                    assert!(
-                        matches!(outcome, Outcome::OneSided(_)),
+                    assert_matches!(
+                        outcome,
+                        Outcome::OneSided(_),
                         "steps after a failure are not reached"
                     );
                 }
