@@ -444,8 +444,8 @@ fn answered_publication(audit: &ProgramAudit) -> bool {
 /// stays while what this answers is held.
 fn declared(audit: &ProgramAudit, called: String, root: &str) -> impl Sized {
     audit.locate(root);
-    let declaration = ::node::Declaration::new(called, root, ::node::Purpose::Test);
-    process_audit::declared(audit, declaration)
+    ::node::Declaration::new(called, root, ::node::Purpose::Test)
+        .and_then(|declaration| process_audit::declared(audit, declaration))
         .and_then(|declaration| declaration.declare().map_err(|error| error.to_string()))
         .map_err(|error| {
             let problem = format!("roll: could not declare itself: {error}");

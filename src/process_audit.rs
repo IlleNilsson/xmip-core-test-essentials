@@ -134,7 +134,7 @@ mod tests {
         let directory = scratch("process-audit-hidden");
         let (cluster, roll) = named();
         let audit = ProgramAudit::new(&roll, Some(&directory));
-        let bare = || Declaration::new(&roll, cluster_root(), Purpose::Test);
+        let bare = || Declaration::new(&roll, cluster_root(), Purpose::Test).expect("a name");
 
         let shown = declared_as(&audit, bare(), false).expect("declared");
         assert!(!format!("{shown:?}").contains("hidden"), "{shown:?}");

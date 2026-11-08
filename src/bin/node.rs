@@ -298,7 +298,7 @@ fn declaration(
     ];
 
     said.into_iter().try_fold(
-        ::node::Declaration::new(called, node, ::node::Purpose::Test),
+        ::node::Declaration::new(called, node, ::node::Purpose::Test)?,
         |declaration, (key, value)| declaration.with(key, value),
     )
 }

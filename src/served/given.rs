@@ -50,7 +50,8 @@ pub(super) fn placed(
 /// on loopback it serves at, each node its own data folder, its local
 /// endpoint named for the run's cluster, its operate listener on
 /// loopback, and the account the run runs as its one relay, for the
-/// tester's web host (`[operate] relay`).
+/// tester's web host (`[operate] relay`), and the tester among its
+/// operators, by that account and by its operator certificate ([`testers`]).
 pub(super) fn cluster_text(
     cluster: &str,
     declared: &[(String, Vec<String>)],
@@ -97,6 +98,8 @@ pub(super) fn cluster_text(
         }
     }
     let tester = runtime::plane::local::running_as()?;
+    let mut operators = vec![Value::String(tester.clone())];
+    operators.extend(testers()?.into_iter().map(Value::String));
     for (name, roles) in declared {
         let node = table(&mut file, &["nodes", name]);
         node.insert("roles".to_string(), Value::String(roles.join(", ")));
@@ -110,17 +113,44 @@ pub(super) fn cluster_text(
         );
         // The tester's web host runs as the tester, as the run does, and
         // relays the tester's browser to the node, which decides by the
-        // browser's own certificate (ADR-0009, amendment 2026-11-01).
+        // browser's own certificate (ADR-0009, amendment 2026-11-01). The
+        // tester operates each node by name (amendment 2026-11-07): on its
+        // local endpoint by the account it runs as, and in the browser by
+        // the operator certificate the Essentials' authority signed it.
         operate.insert(
             "relay".to_string(),
             Value::Array(vec![Value::String(tester.clone())]),
         );
+        operate.insert("operators".to_string(), Value::Array(operators.clone()));
         if let Some((_, at)) = serving.iter().find(|(serving, _)| serving == name) {
             table(&mut file, &["nodes", name, "storage"])
                 .insert("listen".to_string(), Value::String(at.clone()));
         }
     }
     toml::to_string(&file).map_err(|error| format!("the cluster's file: {error}"))
+}
+
+/// The testers: every person whose operator certificate the Essentials'
+/// authority signed and still stands — the one `New-XmipCertificate
+/// -Request` has signed for the tester before the web host starts — each
+/// `CN=<person>`, as `Start-XmipOperationWeb -Tester` names the tester to
+/// the web host. None where the authority signed none.
+///
+/// # Errors
+///
+/// Where the authority's register cannot be read.
+fn testers() -> Result<Vec<String>, String> {
+    let now = observe::now_unix_nanos() / 1_000_000_000;
+    let register = provision::register::Register::at(&crate::environment::authority());
+    let records = register
+        .records()
+        .map_err(|error| format!("the Essentials' authority: {error}"))?;
+    Ok(records
+        .into_iter()
+        .filter(|record| record.purpose == provision::Purpose::Operator.word())
+        .filter(|record| matches!(record.standing(now), "current" | "renewal due"))
+        .map(|record| format!("CN={}", record.subject))
+        .collect())
 }
 
 /// The table at `path` in `file`, made where it is not.
@@ -293,6 +323,29 @@ mod tests {
                 "{} relays the tester",
                 path.display()
             );
+        }
+
+        // A run started once the tester holds that certificate lists the
+        // tester an operator on every node, by the run's account and by the
+        // certificate's subject (ADR-0009, amendment 2026-11-07).
+        let later = base.join("third");
+        let text = cluster_text(
+            &cluster,
+            &declared,
+            &placed(&declared, &later).expect("placed"),
+        )
+        .expect("the cluster's text");
+        let file: Table = text.parse().expect("TOML");
+        for (node, _) in &declared {
+            let operators = file["nodes"][node]["operate"]["operators"]
+                .as_array()
+                .expect("operators");
+            for name in [tester.as_str(), "CN=tester@example.org"] {
+                assert!(
+                    operators.iter().any(|it| it.as_str() == Some(name)),
+                    "{name}"
+                );
+            }
         }
         let _ = std::fs::remove_dir_all(&base);
     }

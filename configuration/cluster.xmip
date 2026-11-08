@@ -23,13 +23,18 @@
 # inside Xmip's mutual TLS (ADR-0014, ADR-0063); its local endpoint,
 # xmip-<node>, always starts. The certificate is the node's, from the
 # cluster's own authority; the anchors are that authority, which an
-# operator's certificate must reach. Every proven caller operates.
+# operator's certificate must reach. Reaching them grants nothing: each
+# caller holds the role its own name is listed with, and none where no list
+# names it (ADR-0009, amendment 2026-11-07). On one computer the run lists
+# the tester among every node's operators: the account it runs as, and the
+# subject of every operator certificate the Essentials' authority signed
+# (src/served/given.rs); on machines of their own the environment lists its
+# operators' certificate subjects or accounts in `operators`.
 [operate]
 listen = "0.0.0.0:7401"
 certificate = "tls/node.pem"
 key = "tls/node.key"
 anchors = "tls/anchors.pem"
-role = "operator"
 
 # Xmip Storage, reached by name over Xmip's mutual TLS with the node's own
 # certificate (ADR-0063; ADR-0067, amendment 2026-10-13). Only D1 and D2

@@ -9,7 +9,7 @@ use authenticate::{
 use authorize::{Action, Attempt, Authorizer, Decision, authorize};
 use context::{Alignment, AuthenticatedIdentity, IdentityFacts, Minimum, OnMisalignment, Verified};
 use identify::{IdentifyError, Presented, StreamArrival, TransportIdentifier, identify_transport};
-use xcore::{Arriving, Layer, Mechanism, PartyId, Purpose, mechanism};
+use xcore::{Arriving, Clock as _, Layer, Mechanism, PartyId, Purpose, SystemClock, mechanism};
 
 use super::Facing;
 use crate::parties::Parties;
@@ -135,7 +135,7 @@ pub(super) fn authorization(
     let facts = IdentityFacts::evaluate(Alignment::None, identity, None);
     let policy = LocationPolicy { permits };
     let policies: [&dyn Authorizer; 1] = [&policy];
-    let attempt = Attempt::new(action, facing.name());
+    let attempt = Attempt::new(action, facing.name(), SystemClock.unix_timestamp_nanos());
     authorize(
         &policies,
         &facts,
