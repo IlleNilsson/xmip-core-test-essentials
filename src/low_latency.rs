@@ -175,7 +175,7 @@ impl LowLatency {
                 let scope = format!("{}/{}/{}", self.node, name, contract.name());
                 driven.insert(scope.clone());
                 self.seen.insert(scope.clone(), name);
-                let payload = contract.stream().bytes().to_vec();
+                let payload = contract.payload();
 
                 let started = Instant::now();
                 let exchange = transport.exchange(&payload);

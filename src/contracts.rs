@@ -118,7 +118,7 @@ impl ContractTrait for ContentContract {
             Contract::Sql => return SqlContract::new().validate(stream),
             Contract::Bytes | Contract::Text | Contract::Html => {}
         }
-        let issues = check(self.contract, stream.bytes());
+        let issues = check(self.contract, stream.load()?);
 
         Ok(ValidationResult {
             valid: issues.is_empty(),

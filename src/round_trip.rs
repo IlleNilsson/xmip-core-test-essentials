@@ -23,7 +23,7 @@ use crate::verdict::{Contract, Outcome};
 /// outcome and the bytes that moved (zero unless delivered).
 #[must_use]
 pub fn round_trip(transport: &dyn RoundTrip, contract: Contract) -> (Outcome, u64) {
-    round_trip_with(transport, contract, contract.stream().bytes())
+    round_trip_with(transport, contract, &contract.payload())
 }
 
 /// The same round with a chosen probe — a stress level's payload at the size
