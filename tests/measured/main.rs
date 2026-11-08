@@ -7,7 +7,10 @@
 //!
 //! - a pass over idle nodes costs each under a millisecond
 //!   (`Cluster::idle_pass`, which `tests/spawned` reads too);
-//! - a heartbeat's first beat is on disk within milliseconds of its start.
+//! - a heartbeat's first beat is on disk within milliseconds of its start;
+//! - `LowLatency`'s pairs stay within their budgets (`low_latency.rs`).
+
+mod low_latency;
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};

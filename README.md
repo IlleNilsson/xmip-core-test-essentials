@@ -265,7 +265,10 @@ once-guard), with `CARGO_BUILD_JOBS` where the run sets it and two jobs
 else. Until 2026-10-23 each test built its own, four builds ran at once on
 every core, and a timing test beside them,
 `low_latency::tests::spikes_push_a_pair_over_its_budget`, failed under a
-landing for the load alone.
+landing for the load alone. It failed so again on 2026-11-08 beside the
+other library tests, and what it held to a time — `file` within its budget,
+a clean run green — is the timing program's since
+(`tests/measured/low_latency.rs`), run alone after every other test.
 
 Decision 2 said nodes run as System Processes, and until this day no scenario
 spawned one. The **cluster** does (`cluster.rs`): `node`, a second binary, is

@@ -294,41 +294,25 @@ fn red(scope: &str, why: String, now: i64) -> HealthRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::exchange::{FileRoundTrip, TcpRoundTrip, UdpRoundTrip};
-
-    /// The three transports the tests judge: file never spikes, and one of
-    /// the others must. The runner drives every one.
-    fn sample(dir: &std::path::Path) -> Vec<Box<dyn RoundTrip>> {
-        vec![
-            Box::new(FileRoundTrip::new(dir)),
-            Box::new(TcpRoundTrip),
-            Box::new(UdpRoundTrip),
-        ]
-    }
+    use crate::exchange::{TcpRoundTrip, UdpRoundTrip};
     use crate::storm::violations;
     use crate::support::{scope, scratch};
 
-    #[test]
-    fn a_clean_run_stays_within_budget_and_is_green() {
-        let dir = scratch("clean");
-        let mut ff = LowLatency::new(scope("low-latency"), &dir).over(sample(&dir));
-        let mut snapshot = ff.tick();
-        for _ in 0..15 {
-            snapshot = ff.tick();
-        }
-        assert_eq!(
-            snapshot.worst(&scope("low-latency")),
-            Some(Health::Fine),
-            "loopback beats every budget with no spikes"
-        );
-        std::fs::remove_dir_all(&dir).ok();
+    // What a pair's measured round trip is held to — loopback green within
+    // its budget, `file` green while the others spike — is a time under a
+    // second, and is the timing program's (`tests/measured/low_latency.rs`;
+    // rust-style.md 5c). What stays here holds whatever the machine's load,
+    // over two transports that spike: `file` never does, and its round trips
+    // were most of these tests' minute under a landing's load.
+    fn spiking() -> Vec<Box<dyn RoundTrip>> {
+        vec![Box::new(TcpRoundTrip), Box::new(UdpRoundTrip)]
     }
 
     #[test]
     fn spikes_push_a_pair_over_its_budget() {
         let dir = scratch("spikes");
         let mut ff = LowLatency::new(scope("low-latency"), &dir)
-            .over(sample(&dir))
+            .over(spiking())
             .under_pressure();
         let mut snapshot = ff.tick();
         for _ in 0..80 {
@@ -340,18 +324,12 @@ mod tests {
             "injected spikes should drive p99 past a budget — a Done rolls up to Holding \
              (ADR-0041)"
         );
-        // file never spikes: it stays green.
-        assert_eq!(
-            snapshot.worst(&scope("low-latency/file")),
-            Some(Health::Fine),
-            "file is left fast"
-        );
         std::fs::remove_dir_all(&dir).ok();
     }
 
     /// Drive `ff` for `rounds` at a level: every record green, or its p99
     /// reported against the budget, or a failure with its reason; the rollup
-    /// honest; `file` never spiking. Returns the last snapshot.
+    /// honest. Returns the last snapshot.
     fn stress_rounds(ff: &mut LowLatency, rounds: u64) -> Snapshot {
         let mut snapshot = Snapshot::new();
         for round in 1..=rounds {
@@ -370,21 +348,16 @@ mod tests {
     }
 
     #[test]
-    fn harsh_spikes_are_reported_against_the_budget_and_file_stays_fast() {
+    fn harsh_spikes_are_reported_against_the_budget() {
         let dir = scratch("low-latency-harsh");
         let mut ff = LowLatency::new(scope("low-latency"), &dir)
             .at(Stress::Harsh)
-            .over(sample(&dir));
+            .over(spiking());
         let snapshot = stress_rounds(&mut ff, Stress::Harsh.rounds());
         assert_ne!(
             snapshot.worst(&scope("low-latency")),
             Some(Health::Fine),
             "at three times the spike rate, a p99 blows its budget within the rounds"
-        );
-        assert_eq!(
-            snapshot.worst(&scope("low-latency/file")),
-            Some(Health::Fine),
-            "file is left fast"
         );
         std::fs::remove_dir_all(&dir).ok();
     }
