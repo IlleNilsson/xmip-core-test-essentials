@@ -606,8 +606,8 @@ mod tests {
             format!(
                 "snapshot={}\nhistory={}\nactivity={}",
                 area.join(format!("{cluster}-snapshot.xmip")).display(),
-                area.join(format!("{cluster}-history.xmip")).display(),
-                area.join(format!("{cluster}-activity.xmip")).display()
+                area.join(format!("{cluster}-history.toml")).display(),
+                area.join(format!("{cluster}-activity.toml")).display()
             )
         );
         let refused = the_publication(&names(&[&cluster])).expect_err("no area");

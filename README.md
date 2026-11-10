@@ -430,7 +430,7 @@ started as (cluster, stress, tests, nodes and their capabilities, rounds,
 the paths it publishes to), `stop` when it ends as it meant to, a refusal
 at the door as the failure to `start`, a failed `declare`, `publish`,
 `spawn-cluster` or `spawn-nodes` as a failure, and every panic as
-`unhandled`. The records go to `audit.xmip` in `XMIP_AUDIT_DIRECTORY`, or
+`unhandled`. The records go to `audit.toml` in `XMIP_AUDIT_DIRECTORY`, or
 to the operating system's log where none is set; `src/process_audit.rs` is
 the one place the three say it, and the audit capability writes every
 record. Under `cargo test` the variable is `target/audit`
@@ -700,10 +700,10 @@ compilers beneath it — as it stops a roll, and a cluster still building is
 refused a second start as a rolling one is.
 
 Everything a run writes on this machine goes under `.local-work/essentials`
-at the repository root: `<cluster>-snapshot.xmip`, `<cluster>-history.xmip`
-and `<cluster>-activity.xmip` for the monitors (their shapes are `observe::Publication`'s, `observe::Curve`'s and `observe::Recent`'s), named for the cluster the roll
-was started as (`-Cluster`, required: the owner names the cluster), `roll-<pid>.xmip` saying what
-each roll was started with, `build-<start time>.xmip` and `.log` for a roll
+at the repository root: `<cluster>-snapshot.xmip`, `<cluster>-history.toml`
+and `<cluster>-activity.toml` for the monitors (their shapes are `observe::Publication`'s, `observe::Curve`'s and `observe::Recent`'s), named for the cluster the roll
+was started as (`-Cluster`, required: the owner names the cluster), `roll-<pid>.toml` saying what
+each roll was started with, `build-<start time>.toml` and `.log` for a roll
 still building or whose build failed, the roll's own lines in `roll-<start time>.log`,
 and under `node/` each hand-started node's snapshot and log. The folder is
 device-local and ignored by git.

@@ -14,7 +14,7 @@
 //! the activity are `observe::Curve`'s and `observe::Recent`'s the same way.
 //!
 //! **TOML, not JSON.** On disk the estate is TOML — the owner's rule, the same
-//! reason `architecture.json` was deleted for `architecture.xmip`; JSON is
+//! reason `architecture.json` was deleted for `architecture.toml`; JSON is
 //! reserved for what lives in memory or on the wire.
 
 use observe::{Activity, Curve, History, Publication, Recent, Run, Snapshot, Topology};

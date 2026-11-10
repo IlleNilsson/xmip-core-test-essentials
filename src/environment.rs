@@ -133,16 +133,16 @@ pub fn authority() -> PathBuf {
 }
 
 /// Where the roll of `cluster` publishes its snapshot, history and activity
-/// in `area`: `<cluster>-snapshot.xmip`, `-history.xmip` and
-/// `-activity.xmip`. The one place the names are decided; `Start-XmipTest`
+/// in `area`: `<cluster>-snapshot.xmip`, `-history.toml` and
+/// `-activity.toml`. The one place the names are decided; `Start-XmipTest`
 /// asks `xmip-essentials-roll --publication <cluster> <area>` rather than
 /// naming them again.
 #[must_use]
 pub fn publish_paths(cluster: &str, area: &Path) -> (PathBuf, PathBuf, PathBuf) {
     (
         area.join(format!("{cluster}-snapshot.xmip")),
-        area.join(format!("{cluster}-history.xmip")),
-        area.join(format!("{cluster}-activity.xmip")),
+        area.join(format!("{cluster}-history.toml")),
+        area.join(format!("{cluster}-activity.toml")),
     )
 }
 
