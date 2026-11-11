@@ -15,9 +15,9 @@
 //! amendment 2026-10-13). What
 //! only a roll has is drawn here: between the stages run the handoffs,
 //! receive to process to send, one link per pair of stages configured to
-//! exchange them or that exchanged any, its volume the hops and its rate
-//! their rise per second since the roll's last publication
-//! (`Topology::rate_since`); a link shows the worst leaf at either end. The
+//! exchange them or that exchanged any, its volume the hops; its rate, and
+//! every drawn thing's activity, the roll's window states over its rounds
+//! (`observe::topology::window`); a link shows the worst leaf at either end. The
 //! shared directory is drawn only when a node ran a test over it. The model
 //! and its words are `observe::topology`'s, which writes and reads them
 //! (open problem 25).
@@ -96,6 +96,7 @@ mod tests {
     use crate::support::{declaring, path, test_cluster};
     use node::Capability;
     use observe::TopologyLink;
+    use observe::topology::window::Window;
     use observe::{
         Count, Counted, Health, HealthRecord, NodeKind, Origin, Publication, Snapshot, TopologyNode,
     };
@@ -277,7 +278,16 @@ mod tests {
             ),
             (test_cluster().name.as_str(), root.as_str(), "holding")
         );
-        assert!((cluster.activity - 0.75).abs() < f64::EPSILON);
+        // Drawn still: what moved is the roll's window's to state, never
+        // the share of the nodes alive (ADR-0052, amendment 2026-11-10).
+        assert!(
+            topology
+                .nodes
+                .iter()
+                .all(|node| node.activity.abs() < f64::EPSILON),
+            "{:?}",
+            topology.nodes
+        );
         // ADR-0041: a parent is Fine or Holding, never its leaf's mood.
         assert_eq!(find(&topology, &named("node/<r>")).state, Health::Fine);
         assert_eq!(find(&topology, &named("node/<s>")).state, Health::Holding);
@@ -379,7 +389,7 @@ mod tests {
     /// The owner, 2026-09-25: *even when testing, the topology does not show
     /// configured traffic or its usage.* Every path the roster configures is
     /// drawn, handed over or not, and says which; a hop no configuration
-    /// declares is observed; and the rate is the rise since the last round.
+    /// declares is observed; and the rate is the rise over the roll's window.
     #[test]
     fn a_configured_path_is_drawn_before_its_first_handoff_and_says_so() {
         let [receiving, processing, sending, _] = nodes();
@@ -416,24 +426,32 @@ mod tests {
                 .all(|link| link.protocol != "handoff")
         );
 
-        let earlier = cluster_topology(
-            &published(),
-            &roster(),
-            true,
-            &[hop(&receiving, "receive", &processing, "process", 1)],
-            &spread(),
-            1_000_000_009,
-        );
-        let mut later = cluster_topology(
-            &published(),
-            &roster(),
-            true,
-            &[hop(&receiving, "receive", &processing, "process", 5)],
-            &spread(),
-            3_000_000_009,
-        );
-        later.rate_since(&earlier);
-        assert!((later.links[0].rate - 2.0).abs() < f64::EPSILON);
+        // Two rounds through the roll's window: the handoff that rose moves,
+        // the configured one that carried nothing and the store stay still.
+        let mut window = Window::new();
+        for (hops, at) in [(1, 1_000_000_009), (5, 3_000_000_009)] {
+            let mut round = cluster_topology(
+                &published(),
+                &roster(),
+                true,
+                &[hop(&receiving, "receive", &processing, "process", hops)],
+                &spread(),
+                at,
+            );
+            window.state(&mut round, &published());
+            if hops == 5 {
+                assert!((round.links[0].rate - 2.0).abs() < f64::EPSILON);
+                assert!(
+                    round.links[1..]
+                        .iter()
+                        .all(|link| link.rate.abs() < f64::EPSILON)
+                );
+                assert!(
+                    (find(&round, &named("node/<r>/receive")).activity - 2.0).abs() < f64::EPSILON,
+                    "what its handoff carried"
+                );
+            }
+        }
     }
 
     /// The test's snapshot with a Party's receive leaf stressed and counts

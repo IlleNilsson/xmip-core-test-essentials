@@ -29,6 +29,17 @@ pub struct Headroom {
 /// The last measure taken, shared by every scenario in the process.
 static CURRENT: Mutex<Option<Headroom>> = Mutex::new(None);
 
+/// Held by a test that sets the current measure, or reads it twice and
+/// compares: this crate's tests run in parallel over the one `CURRENT`, and a
+/// test setting it between another's two readings failed the landing of
+/// 2026-11-11 (3 workers at construction, 1 at the assertion).
+#[cfg(test)]
+pub(crate) fn held() -> std::sync::MutexGuard<'static, ()> {
+    static HELD: Mutex<()> = Mutex::new(());
+    HELD.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 impl Headroom {
     /// What the tests may take of what is free.
     const SHARE: f64 = 0.5;
@@ -252,6 +263,7 @@ mod tests {
 
     #[test]
     fn a_measure_is_a_fraction_and_the_current_one_can_be_set() {
+        let _held = held();
         let measured = Headroom::refresh();
         assert!((0.0..=1.0).contains(&measured.free()));
         assert!(measured.cores() >= 1);

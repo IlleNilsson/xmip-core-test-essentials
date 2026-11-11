@@ -327,6 +327,13 @@ twice — and `--name` must be that same word. It publishes
 `<cluster>-cluster.xmip` beside the roll's snapshot, atomically, each round,
 exactly as a node publishes its own.
 
+Each program in `src/bin` keeps its `main`, and its parts are the library's:
+the cluster's in `cluster.rs`, the roll's in `roll.rs` (the run's nodes, as
+it sorts them, in `roll/nodes.rs`), and a node's command line in
+`node_arguments.rs`. The style gate reads `src/bin` as it reads the rest
+since 2026-11-11; until then it skipped every directory called `bin` as
+.NET's output, and the roll and the node had grown past 400 lines unread.
+
 `stop` in the shared directory stops the whole tree: a node leaves between
 rounds, and so does its cluster, which stops its own nodes before it goes.
 `Stop-XmipTest` ends a run from the leaves up — nodes, then the cluster, then
@@ -558,7 +565,9 @@ stages, and every pair that exchanged any — pattern `send-receive`, protocol
 `handoff`, origin `configured` for a path nothing has crossed yet (volume
 zero, and its evidence says so), `both` once it has carried a hop and
 `observed` for a hop no configuration declares, volume the hops, rate their
-rise per second since the roll's last publication (`Topology::rate_since`),
+rise per second over the roll's window of the last thirty seconds
+(`observe::topology::window`, which states every drawn thing's activity too,
+what moved through it per second; ADR-0052, amendment 2026-11-10),
 mood the worst leaf at either end — and the shared store with its
 ExclusiveClaim and DailyBacklog links only when those tests ran on a node.
 Outside the nodes are the Parties (`party`; ADR-0052, amendment 2026-09-29;
@@ -707,3 +716,46 @@ each roll was started with, `build-<start time>.toml` and `.log` for a roll
 still building or whose build failed, the roll's own lines in `roll-<start time>.log`,
 and under `node/` each hand-started node's snapshot and log. The folder is
 device-local and ignored by git.
+
+## The demo readiness check, 2026-11-10
+
+The owner's demo is on 2026-12-18; a demo branch is cut on his word and must
+be workable by 2026-12-16. `Core.Demo` proves a tree is (ADR-0028, amendment
+2026-11-10). It is a suite of Xmip's own, started, observed and stopped as
+the Essentials is:
+
+```powershell
+Start-XmipTest -Suite Core.Demo -Cluster C1 -Stress Realistic -Tester alice@example.org
+Get-XmipTestStatus                        # the part it is on, then OK or FAILED
+Get-XmipTestResult -Suite Core.Demo       # every part, in words, with the reason
+Stop-XmipTest -Suite Core.Demo            # what it started, then the run
+```
+
+It runs detached in a `pwsh` of its own, its record `demo-<start time>.toml`
+and its log beside it under `.local-work/demo`, and its parts in order:
+
+| Part | What it does | OK when |
+| --- | --- | --- |
+| roll | rolls `-Cluster` from this tree at `-Stress` as `Start-XmipTest -Suite Core.Essentials` does | the build ended, `<cluster>-snapshot.xmip` is published within ten minutes of the roll's spawn, and then every node the run record declares runs |
+| web | `Start-XmipOperationWeb` over that snapshot with `-Tester` | its address answers https with a certificate that reaches the Essentials' authority's anchor, within a minute |
+| desktop | `dotnet build` of the Desktop operations app for `net11.0-windows10.0.19041.0`; its deployed `gui.toml`, beside the executable and never the source, rewritten to `Surface = "snapshot"` and that `Snapshot` | the app stays up for a minute; that it read the snapshot is not proved, since the app records no surface it opened |
+| extension | `Build-XmipService -Extension VsCode`, and `xmip-lsp` built by cargo in the extension's crate by the Essentials' own patched build | the VSIX and the server exist, and the server answers `initialize` over stdio with its capabilities |
+| stop | ends its own roll, the web host and the desktop app, each only while it is still what the run started, and gives the deployed `gui.toml` back as the build deploys it | every one is stopped; one that is not is FAILED and the rest are still stopped |
+
+`web` and `desktop` are SKIPPED where the roll did not pass, with the roll's
+reason; `extension` is tried whatever the roll did. The run is OK only where
+every part is OK, and a run that breaks off is FAILED. `-Stress` omitted is
+`Realistic`, the stress the demo runs at. `-Hidden` hides the run and the
+roll it starts. Refused before anything starts: any other switch, a missing
+`-Cluster`, a run of the check still running, and a cluster that already
+rolls or builds — the check proves the roll it builds itself and never
+follows one; stop that roll first, or name another cluster.
+
+It is started by its name alone: `-Suite *` and `-Suite Core.*` never select
+it, since it builds and opens the desktop app and holds the web host's
+address. A run whose `pwsh` was killed before its stop part ran is listed
+FAILED, and `Stop-XmipTest -Id <its pid>` — or the next start of the check —
+stops what its record says it started. Not covered: the runtime's native
+library the web host and the desktop app load is not built by the check; they
+load the one `XMIP_RUNTIME_LIBRARY`, their configuration or their own folder
+names.

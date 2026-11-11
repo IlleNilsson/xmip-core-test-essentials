@@ -370,6 +370,7 @@ mod tests {
 
     #[test]
     fn harsh_faults_sizes_and_workers_keep_the_invariants_and_leave_file_fine() {
+        let _held = crate::headroom::held();
         let dir = scratch("harsh");
         let mut schedule = Schedule::new(cluster_root(), &dir)
             .at(Stress::Harsh)

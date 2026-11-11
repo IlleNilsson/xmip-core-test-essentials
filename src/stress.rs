@@ -222,6 +222,7 @@ mod tests {
 
     #[test]
     fn the_levels_stay_within_the_headroom() {
+        let _held = crate::headroom::held();
         let headroom = Headroom::current();
         assert_eq!(Stress::Brutal.workers(), headroom.cores());
         assert!(Stress::Harsh.workers() <= 4);

@@ -92,29 +92,34 @@
 //! when its rounds are done, every refusal and failed write as a failure, and
 //! every panic as `unhandled` — into `XMIP_AUDIT_DIRECTORY`, else the
 //! operating system's log (`process_audit.rs`).
+//!
+//! What it decides, sorts, spawns, draws and leaves behind is the library's
+//! `roll.rs`; this file is its `main`.
 
 use std::io::IsTerminal;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
+use observe::History;
 use observe::now_unix_nanos;
-use observe::{History, Run};
+use observe::topology::window::Window;
 use xaudit::program_audit::ProgramAudit;
-use xmip_core_test_essentials::carried::Carried;
-use xmip_core_test_essentials::cluster::{Orders, Spawned, cluster_binary, merge};
+use xmip_core_test_essentials::cluster::{Orders, merge};
 use xmip_core_test_essentials::drop_box::Dropping;
 use xmip_core_test_essentials::environment::{self, max_seconds, time_factor};
 use xmip_core_test_essentials::far_end::FarEnd;
 use xmip_core_test_essentials::in_process::InProcess;
 use xmip_core_test_essentials::operator_orders;
 use xmip_core_test_essentials::publication::Publication;
-use xmip_core_test_essentials::real::{self, RealNode};
+use xmip_core_test_essentials::real;
+use xmip_core_test_essentials::roll::{
+    Nodes, Ran, declared, drawn, leave, nodes, relayed, say_started, shared, spawn_cluster,
+    the_publication,
+};
 use xmip_core_test_essentials::run::{announced, found};
-use xmip_core_test_essentials::scenario::{ROUND_TRIP, drives};
-use xmip_core_test_essentials::served::{self, Served};
 use xmip_core_test_essentials::{
-    Budget, Headroom, Parties, Roster, Spread, Stress, cluster_name, cluster_root,
-    cluster_topology, record_round, redraw, started, summarize,
+    Budget, Headroom, Parties, Stress, cluster_name, cluster_root, record_round, redraw, started,
+    summarize,
 };
 use xmip_core_test_essentials::{image, process_audit};
 
@@ -188,7 +193,9 @@ fn main() {
     }
 
     let mut round: u64 = 0;
-    let mut drawn_before = None;
+    // What moved over the last half minute of rounds, stated on each
+    // round's drawing (ADR-0052, amendment 2026-11-10).
+    let mut window = Window::new();
     loop {
         round += 1;
 
@@ -205,13 +212,7 @@ fn main() {
         }
         real::published_into(&real_nodes, root, &mut snapshot, now_unix_nanos());
         let drawing = (spawned.as_ref(), !real_nodes.is_empty());
-        let topology = drawn(
-            &snapshot,
-            drawing,
-            (&roster, relayed, &spread),
-            drawn_before.as_ref(),
-        );
-        drawn_before.clone_from(&topology);
+        let topology = drawn(&snapshot, drawing, (&roster, relayed, &spread), &mut window);
         if let Some(carried) = carried.as_mut() {
             carried.round(root, &mut snapshot, now_unix_nanos());
         }
@@ -257,173 +258,6 @@ fn main() {
     );
 }
 
-/// What a roll did, said as it stops.
-struct Ran {
-    round: u64,
-    dropping: Option<Dropping>,
-    carried: Option<Carried>,
-}
-
-/// The roll of `cluster` leaving, having `ran`: the cluster process asked
-/// to leave first, so it stops its own nodes on the way out and nothing is
-/// orphaned; every file dropped into the nodes the run started given its
-/// time to arrive, then those nodes drained before what they keep goes
-/// with the run's `base`, and the cluster's file at `path`; the images go
-/// with them, and the stop is audited.
-fn leave(
-    audit: &ProgramAudit,
-    cluster: &str,
-    ran: &Ran,
-    (spawned, served): (Option<Spawned>, Option<Served>),
-    (base, path): (&Path, &Path),
-) {
-    if let Some(mut spawned) = spawned {
-        spawned.stop();
-    }
-    if let Some(carried) = &ran.carried {
-        carried.settle();
-    }
-    if let Some(served) = served {
-        served.stop();
-    }
-    std::fs::remove_dir_all(base).ok();
-    std::fs::remove_file(path).ok();
-    // This process still holds its own image, so Stop-XmipTest takes the
-    // rest, and the next roll on this cluster clears the directory first.
-    image::clear();
-    let rounds = ran.round.to_string();
-    let taken = ran
-        .dropping
-        .as_ref()
-        .map(Dropping::words)
-        .unwrap_or_default();
-    let carried = ran.carried.as_ref().map(Carried::words).unwrap_or_default();
-    process_audit::stop(
-        audit,
-        &[
-            ("cluster", cluster),
-            ("rounds", &rounds),
-            ("drop-box", &taken),
-            ("carried", &carried),
-        ],
-    );
-}
-
-/// The run's nodes, sorted: the real ones — a typed name that resolves and
-/// answers, and every other node started as `xmip-service` where the run
-/// was given one, driven through its Receive Locations — their names, the
-/// roster, and the simulated nodes alone, which are all the cluster process
-/// spawns.
-struct Nodes {
-    real: Vec<RealNode>,
-    names: Vec<String>,
-    roster: Roster,
-    simulated: Roster,
-    served: Option<Served>,
-    carried: Option<Carried>,
-    /// What the real nodes fetch from and put on, kept served for the run.
-    far_end: Option<FarEnd>,
-}
-
-/// The nodes of the run of `cluster` beneath `base`, as [`Nodes`] sorts
-/// them.
-///
-/// # Errors
-///
-/// REFUSED, as [`real::sorted`] and [`serve`] say.
-fn nodes(cluster: &str, base: &Path) -> Result<Nodes, String> {
-    let real::Sorted {
-        mut real,
-        mut names,
-        roster,
-        simulated,
-    } = environment::roster().and_then(|all| real::sorted(cluster, all))?;
-    // Nodes on machines of their own: driven through the Parties' far end
-    // their environment bound them to, and none started here, which could
-    // reach no Storage node of theirs (ADR-0028, amendment 2026-10-22).
-    if !real.is_empty() {
-        let arrived = Carried::arrivals();
-        let far = FarEnd::serve(&real, &arrived)?;
-        let carried = far
-            .as_ref()
-            .map(|far| Carried::new(&far.bindings, arrived))
-            .transpose()?;
-        return Ok(Nodes {
-            real,
-            names,
-            roster,
-            simulated,
-            served: None,
-            carried,
-            far_end: far,
-        });
-    }
-    let (served, started, simulated) = serve(cluster, &roster, simulated, base)?;
-    names.extend(started.iter().map(|node| node.name.clone()));
-    real.extend(started);
-    let carried = served
-        .as_ref()
-        .map(|served| Carried::new(&served.bindings, Carried::arrivals()))
-        .transpose()?;
-    Ok(Nodes {
-        real,
-        names,
-        roster,
-        simulated,
-        served,
-        carried,
-        far_end: None,
-    })
-}
-
-/// The topology of this round's `snapshot`, where a cluster process ran
-/// (`spawned`) or nodes real or started as xmip-service published
-/// (`real`): a run with no cluster process too, whose every node is one of
-/// those. The handoffs are the cluster process's alone. Each link's rate is
-/// its rise since the round `before` (ADR-0052, amendment 2026-09-25).
-fn drawn(
-    snapshot: &observe::Snapshot,
-    (spawned, real): (Option<&Spawned>, bool),
-    (roster, relayed, spread): (&Roster, bool, &Spread),
-    before: Option<&observe::Topology>,
-) -> Option<observe::Topology> {
-    (spawned.is_some() || real).then(|| {
-        let hops = spawned.map_or(&[][..], Spawned::hops);
-        let handed = relayed && spawned.is_some();
-        let now = now_unix_nanos();
-        let mut drawn = cluster_topology(snapshot, roster, handed, hops, spread, now);
-        if let Some(before) = before {
-            drawn.rate_since(before);
-        }
-        drawn
-    })
-}
-
-/// Every node of `simulated` started as the `xmip-service` the run was
-/// given (`environment::service`), and the real nodes the rig reads them
-/// as; none, and every one still simulated, where it was given none or none
-/// of them declares the Storage role, which the rest would reach.
-///
-/// # Errors
-///
-/// REFUSED where a node does not start, as [`Served::start`] says.
-fn serve(
-    cluster: &str,
-    roster: &Roster,
-    simulated: Roster,
-    base: &Path,
-) -> Result<(Option<Served>, Vec<RealNode>, Roster), String> {
-    let Some(service) = environment::service() else {
-        return Ok((None, Vec::new(), simulated));
-    };
-    let names: Vec<String> = simulated.names().into_iter().map(str::to_string).collect();
-    if names.is_empty() || !served::stores(&names)? {
-        return Ok((None, Vec::new(), simulated));
-    }
-    let (served, real) = Served::start((cluster, roster), &names, (base, &service))?;
-    Ok((Some(served), real, simulated.without(&names)))
-}
-
 /// Asked where a cluster publishes, it answers the same way: the names are
 /// decided here (`environment::publish_paths`), and `Start-XmipTest`
 /// records what it is told rather than naming the files again. Whether it
@@ -437,44 +271,6 @@ fn answered_publication(audit: &ProgramAudit) -> bool {
     true
 }
 
-/// What this process says of itself while it runs (ADR-0053): the roll is
-/// the test over the cluster it starts, and everything the Essentials runs
-/// is test. Every record from here carries the same location, so a reader
-/// knows whose it is (ADR-0062, amendment 2026-09-29). The declaration
-/// stays while what this answers is held.
-fn declared(audit: &ProgramAudit, called: String, root: &str) -> impl Sized {
-    audit.locate(root);
-    ::node::Declaration::new(called, root, ::node::Purpose::Test)
-        .and_then(|declaration| process_audit::declared(audit, declaration))
-        .and_then(|declaration| declaration.declare().map_err(|error| error.to_string()))
-        .map_err(|error| {
-            let problem = format!("roll: could not declare itself: {error}");
-            process_audit::fail(audit, "declare", &problem);
-        })
-}
-
-/// The roll's `start` record: what the run was started with, as its `[run]`
-/// header says it, the Parties it trades with, how many rounds, and where it
-/// publishes.
-fn say_started(audit: &ProgramAudit, ran: (&Run, &Spread), limit: Option<u64>, snapshot: &Path) {
-    let (run, spread) = ran;
-    let rounds = limit.map_or_else(|| "until stopped".to_string(), |limit| limit.to_string());
-    process_audit::start(
-        audit,
-        &[
-            ("cluster", &run.cluster),
-            ("stress", &run.stress),
-            ("tests", &run.tests.join(",")),
-            ("nodes", &run.roles.join(",")),
-            ("online", &run.online.join(",")),
-            ("real", &run.real.join(",")),
-            ("parties", &spread.parties().names().join(",")),
-            ("rounds", &rounds),
-            ("snapshot", &snapshot.display().to_string()),
-        ],
-    );
-}
-
 /// What the environment told this roll, or REFUSED: a value it cannot read is
 /// said, audited as the failure to `start`, and the roll does not start —
 /// until 2026-09-19 an unknown scenario was said on stderr and dropped, and
@@ -485,65 +281,6 @@ fn or_refuse<T>(audit: &ProgramAudit, told: Result<T, String>) -> T {
         process_audit::fail(audit, "start", &refusal);
         std::process::exit(2);
     })
-}
-
-/// Where the roll of a cluster publishes in an area, one `name=path` line
-/// each for the snapshot, the history and the activity. The cluster and the
-/// area are the arguments and the environment is not read.
-fn the_publication(told: &[String]) -> Result<String, String> {
-    let [cluster, area] = told else {
-        return Err("REFUSED: --publication takes a cluster and an area.".to_string());
-    };
-    let (snapshot, history, activity) = environment::publish_paths(cluster, Path::new(area));
-    Ok(format!(
-        "snapshot={}\nhistory={}\nactivity={}",
-        snapshot.display(),
-        history.display(),
-        activity.display()
-    ))
-}
-
-/// Whether `RoundTrip` runs across the cluster's nodes rather than in this
-/// process: it was chosen, and some node's roles serve a stage of the path.
-/// A stage no node serves is REFUSED before anything is spawned, naming the
-/// role that went undeclared (ADR-0056).
-fn relayed(chosen: &[String], roster: &Roster) -> Result<bool, String> {
-    if !drives(chosen, ROUND_TRIP) || !roster.serves_any_stage() {
-        return Ok(false);
-    }
-    roster.refusal().map_or(Ok(true), Err)
-}
-
-/// One cluster process, told the nodes to spawn and the scenarios chosen,
-/// over the shared directory it will own. Nothing is spawned when no node was
-/// named; a cluster that cannot start is said so, audited as the failure to
-/// `spawn-cluster`, and the roll goes on without one, as it did when the
-/// nodes were its own.
-fn spawn_cluster(
-    audit: &ProgramAudit,
-    cluster: &str,
-    orders: &Orders,
-    base: &Path,
-    path: &Path,
-) -> Option<Spawned> {
-    if orders.roster.is_empty() {
-        return None;
-    }
-    let shared = shared(base);
-    let started =
-        cluster_binary().and_then(|binary| Spawned::start(&binary, cluster, orders, &shared, path));
-    match started {
-        Ok(spawned) => Some(spawned),
-        Err(error) => {
-            process_audit::fail(audit, "spawn-cluster", &format!("no cluster: {error}"));
-            None
-        }
-    }
-}
-
-/// The directory the cluster owns and its nodes share, beneath the roll's.
-fn shared(base: &Path) -> PathBuf {
-    base.join("shared")
 }
 
 /// One cluster per roll (ADR-0028): its name, its scope root, and its own
@@ -560,57 +297,4 @@ fn this_cluster() -> Result<(String, String, PathBuf), String> {
     let base = std::env::temp_dir().join("essentials").join(&cluster);
     std::fs::remove_dir_all(&base).ok();
     Ok((cluster, cluster_root(), base))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use configure::fixture::test_cluster;
-
-    fn names(list: &[&str]) -> Vec<String> {
-        list.iter().map(ToString::to_string).collect()
-    }
-
-    fn roster(text: &str) -> Roster {
-        Roster::parse(text).expect("a well-formed roster")
-    }
-
-    #[test]
-    fn round_trip_is_the_nodes_when_any_declares_a_stage_and_it_was_chosen() {
-        let cluster = test_cluster();
-        let [receiving, processing, sending] =
-            ["receiving", "processing", "sending"].map(|role| &cluster.with_role(role).name);
-        let path = roster(&format!(
-            "{receiving}=receiving,{processing}=processing,{sending}=sending"
-        ));
-        assert_eq!(relayed(&[], &path), Ok(true));
-        assert_eq!(relayed(&names(&["round-trip"]), &path), Ok(true));
-        assert_eq!(relayed(&names(&["heavy-load"]), &path), Ok(false));
-        let bare = roster(&format!("{receiving},{processing}"));
-        assert_eq!(relayed(&[], &bare), Ok(false));
-        assert_eq!(relayed(&[], &Roster::default()), Ok(false));
-        // A capability missing is no refusal when RoundTrip was not chosen.
-        let receives = roster(&format!("{receiving}=receiving"));
-        assert_eq!(relayed(&names(&["filing"]), &receives), Ok(false));
-        let refused = relayed(&[], &receives).expect_err("no node processes");
-        assert!(refused.starts_with("REFUSED"), "{refused}");
-    }
-
-    #[test]
-    fn the_publication_names_the_cluster_s_files_in_the_area() {
-        let cluster = test_cluster().name;
-        let said = the_publication(&names(&[&cluster, "area"])).expect("a cluster and an area");
-        let area = Path::new("area");
-        assert_eq!(
-            said,
-            format!(
-                "snapshot={}\nhistory={}\nactivity={}",
-                area.join(format!("{cluster}-snapshot.xmip")).display(),
-                area.join(format!("{cluster}-history.toml")).display(),
-                area.join(format!("{cluster}-activity.toml")).display()
-            )
-        );
-        let refused = the_publication(&names(&[&cluster])).expect_err("no area");
-        assert!(refused.starts_with("REFUSED"), "{refused}");
-    }
 }

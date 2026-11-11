@@ -374,6 +374,7 @@ mod tests {
 
     #[test]
     fn the_budget_is_pairs_by_three_timeouts_over_the_workers() {
+        let _held = crate::headroom::held();
         let dir = scratch("storm-budget");
         let storm = Storm::new(scope("storm"), &dir)
             .at(Stress::Harsh)
