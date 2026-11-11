@@ -382,13 +382,19 @@ convenient; only a name no file can carry is REFUSED before anything spawns.
 
 ### Every node hears itself, 2026-09-29
 
-Every node subscribes two Parties in its own process, through
+Every node subscribes one Party twice in its own process, through
 `xmip-core-event`'s hub and nothing of its own (`src/eventing.rs`; ADR-0065,
 amendment 2026-09-29). Being in the Essentials' process admits nobody: the
-Essentials, the program hosting the hub, hands it the policy that allows the
-two — the authorize capability's party technology, `PartyPolicy`
-(`Hub::authorize_by`; amendment 2026-09-26). *operations* hears every Event on the node and is
-called back, *on-call* hears the failures and is drained each round. A node
+Essentials, the program hosting the hub, hands it the policy that allows
+that Party — the authorize capability's party technology, `PartyPolicy`
+(`Hub::authorize_by`; amendment 2026-09-26). The Party is *operations*, and
+a subscriber is the Party its proven caller resolves to, never one it names:
+*operations* is declared holding the run's account as its
+`peer-credentials` identity, which only the run knows, and the runtime's
+`plane::caller::subscriber` proves the node's process runs as it (ADR-0019
+and ADR-0065, amendments 2026-11-11). One account is one Party, so the one
+Party hears every Event on the node and is called back, and hears the
+failures and is drained each round. A node
 raises an Event for each stage it serves whose failing pairs changed since
 the round before, so a steady node is quiet. It records what its hub holds in
 its snapshot, and the members of the cluster it does not hear, the cluster and the roll merge the Event subscriptions as they
