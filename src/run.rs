@@ -10,15 +10,20 @@ use crate::roster::Roster;
 use crate::scenario::SCENARIOS;
 use crate::stress::Stress;
 
+/// The test a run that reads every node runs: the configured flows, with
+/// real documents (`carried.rs`; ADR-0028, amendment 2026-11-11).
+pub const CARRIED: &str = "Carried";
+
 /// The run of `cluster` driving the `chosen` scenarios (none chosen is every
 /// one) over the nodes of `roster` at `stress`, those named in `real` on
 /// machines of their own and the rest simulated: the tests by the names a
-/// person asks for them, and what each node was started with, including its
-/// online capability. The shape is `observe::Run`'s; this only fills it.
+/// person asks for them — [`CARRIED`] alone where it is `served_only`, every
+/// node read — and what each node was started with, including its online
+/// capability. The shape is `observe::Run`'s; this only fills it.
 #[must_use]
 pub fn started(
     cluster: &str,
-    chosen: &[String],
+    (chosen, served_only): (&[String], bool),
     roster: &Roster,
     stress: Stress,
     real: &[String],
@@ -28,10 +33,15 @@ pub fn started(
     } else {
         chosen.iter().map(String::as_str).collect()
     };
+    let tests = if served_only {
+        vec![CARRIED.to_string()]
+    } else {
+        scenarios.into_iter().map(test_name).collect()
+    };
     let names = roster.names();
     Run {
         cluster: cluster.to_string(),
-        tests: scenarios.into_iter().map(test_name).collect(),
+        tests,
         nodes: names.iter().map(ToString::to_string).collect(),
         roles: names
             .iter()
@@ -141,7 +151,7 @@ mod tests {
         let c = cluster.name.as_str();
         let run = started(
             c,
-            &["round-trip".to_string()],
+            (&["round-trip".to_string()], false),
             &roster,
             Stress::Harsh,
             &[first.to_string()],
@@ -153,7 +163,7 @@ mod tests {
         assert_eq!(run.online, [first]);
         assert_eq!((run.cluster.as_str(), run.stress.as_str()), (c, "harsh"));
 
-        let every = started(c, &[], &Roster::default(), Stress::Calm, &[]);
+        let every = started(c, (&[], false), &Roster::default(), Stress::Calm, &[]);
         assert!(
             every.real.is_empty() && found(&[]).is_none(),
             "all simulated"
@@ -170,5 +180,7 @@ mod tests {
                 "DailyBacklog"
             ]
         );
+        let served = started(c, (&[], true), &roster, Stress::Realistic, &[]);
+        assert_eq!(served.tests, [CARRIED], "a served run lists only Carried");
     }
 }

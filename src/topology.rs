@@ -39,15 +39,17 @@ use crate::support::cluster_root;
 /// handoff links — configured where `relayed` says the run hands `RoundTrip`
 /// along the stages the roster declares, observed where a hop was
 /// delivered — the Parties outside them, each over its own transports as
-/// `spread` says, and the shared store with its links when a node ran a
-/// test over it.
+/// `spread` says for a simulated node, and the one Party a running node
+/// draws itself with (`party::ANY_PARTY`) for each node the run reads,
+/// `read`, whose endpoints are its Locations; and the shared store with its
+/// links when a node ran a test over it.
 #[must_use]
 pub fn cluster_topology(
     snapshot: &observe::Snapshot,
     roster: &Roster,
     relayed: bool,
     hops: &[Hop],
-    spread: &Spread,
+    (spread, read): (&Spread, &[String]),
     now: i64,
 ) -> Topology {
     let names: Vec<&str> = roster.names();
@@ -81,9 +83,15 @@ pub fn cluster_topology(
             name,
             sends: Some(sends),
             receives: Some(receives),
+            transports: &[],
         })
         .collect();
-    party::draw(snapshot, &root, &names, &parties, &mut topology);
+    let (served, simulated): (Vec<&str>, Vec<&str>) = names
+        .iter()
+        .partition(|name| read.iter().any(|one| one == *name));
+    party::draw(snapshot, &root, &simulated, &parties, &mut topology);
+    let anyone = [party::Party::everywhere(party::ANY_PARTY)];
+    party::draw(snapshot, &root, &served, &anyone, &mut topology);
     shared::draw(snapshot, &names, &mut topology);
     topology
 }
@@ -226,7 +234,7 @@ mod tests {
             hop(&receiving, "receive", &processing, "process", 3),
             hop(&processing, "process", &sending, "send", 2),
         ];
-        cluster_topology(&published(), &roster(), true, &hops, &spread(), 9)
+        cluster_topology(&published(), &roster(), true, &hops, (&spread(), &[]), 9)
     }
 
     fn find<'a>(topology: &'a Topology, id: &str) -> &'a TopologyNode {
@@ -255,6 +263,9 @@ mod tests {
             ("node/<r>/receive/file", "endpoint", "node/<r>/receive"),
             ("node/<r>/receive/tcp", "endpoint", "node/<r>/receive"),
             ("node/<p>", "node", "cluster"),
+            // Beneath the process stage only the Subscriptions a node
+            // published: a transport's name never shows under the Work
+            // Process (ADR-0018, amendment 2026-11-11).
             ("node/<p>/process", "stage", "node/<p>"),
             ("node/<s>", "node", "cluster"),
             ("node/<s>/send", "stage", "node/<s>"),
@@ -374,7 +385,7 @@ mod tests {
             &Roster::of(&[only]),
             false,
             &[],
-            &spread(),
+            (&spread(), &[]),
             9,
         );
         let ids: Vec<&str> = bare.nodes.iter().map(|node| node.id.as_str()).collect();
@@ -408,7 +419,7 @@ mod tests {
         );
 
         let stray = [hop(&sending, "process", &receiving, "send", 1)];
-        let observed = cluster_topology(&published(), &roster(), true, &stray, &spread(), 9);
+        let observed = cluster_topology(&published(), &roster(), true, &stray, (&spread(), &[]), 9);
         let link = observed
             .links
             .iter()
@@ -418,7 +429,7 @@ mod tests {
 
         // Not relaying RoundTrip over stages: nothing is configured between
         // the nodes, and only what was delivered is drawn.
-        let unrelayed = cluster_topology(&published(), &roster(), false, &[], &spread(), 9);
+        let unrelayed = cluster_topology(&published(), &roster(), false, &[], (&spread(), &[]), 9);
         assert!(
             unrelayed
                 .links
@@ -435,7 +446,7 @@ mod tests {
                 &roster(),
                 true,
                 &[hop(&receiving, "receive", &processing, "process", hops)],
-                &spread(),
+                (&spread(), &[]),
                 at,
             );
             window.state(&mut round, &published());
@@ -478,7 +489,7 @@ mod tests {
                 observed_unix_nanos: 7,
             });
         }
-        cluster_topology(&snapshot, &roster(), true, &[], &spread(), 9)
+        cluster_topology(&snapshot, &roster(), true, &[], (&spread(), &[]), 9)
     }
 
     fn link_in<'t>(topology: &'t Topology, id: &str) -> &'t observe::TopologyLink {
@@ -588,7 +599,7 @@ mod tests {
             &Roster::of(&[only]),
             false,
             &[],
-            &spread(),
+            (&spread(), &[]),
             9,
         );
         assert!(bare.nodes.iter().all(|node| node.kind != NodeKind::Party));
@@ -612,5 +623,39 @@ mod tests {
         let back = Publication::read(&text).expect("reads back");
         assert_eq!(back.records.len(), snapshot.health(&root).len());
         assert_eq!(back.topology, Some(topology));
+    }
+
+    /// ADR-0018, amendment 2026-11-11: a node the run reads is drawn with
+    /// the Party a running node draws itself with, `any-party`, on each side
+    /// its stages face, never the simulated Parties over transports.
+    #[test]
+    fn a_read_node_is_drawn_with_any_party_on_each_side_it_faces() {
+        let [receiving, _, sending, _] = nodes();
+        let read = [receiving.clone(), sending.clone()];
+        let drawn = cluster_topology(&published(), &roster(), false, &[], (&spread(), &read), 9);
+        let ids: Vec<(&str, &str)> = drawn
+            .links
+            .iter()
+            .filter(|link| link.from.starts_with("party/") || link.to.starts_with("party/"))
+            .map(|link| (link.from.as_str(), link.to.as_str()))
+            .collect();
+        let (into, out) = (
+            format!("node/{receiving}/receive"),
+            format!("node/{sending}/send"),
+        );
+        assert!(
+            ids.contains(&("party/sending/any-party", into.as_str())),
+            "{ids:?}"
+        );
+        assert!(
+            ids.contains(&(out.as_str(), "party/receiving/any-party")),
+            "{ids:?}"
+        );
+        assert!(
+            ids.iter()
+                .filter(|(from, to)| *to == into || *from == out)
+                .all(|(from, to)| from.contains("any-party") || to.contains("any-party")),
+            "a read node faces no simulated Party: {ids:?}"
+        );
     }
 }

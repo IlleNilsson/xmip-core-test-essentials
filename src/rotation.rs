@@ -117,6 +117,20 @@ impl Rotation {
     }
 }
 
+/// Which of `count` placed Receive Locations a run of served or real nodes
+/// strikes at `unix_seconds`: during the first [`STRIKE`] seconds of each
+/// turn of [`PERIOD`], the next Location round them, by the turn alone, so
+/// a test asserts it and every reader agrees; none for the rest of the turn
+/// (ADR-0028, amendment 2026-11-11). Its Party sends a real document no
+/// Subscription takes, which the node keeps in its Dead Message Queue.
+#[must_use]
+pub fn struck(count: usize, unix_seconds: u64) -> Option<usize> {
+    if count == 0 || unix_seconds % PERIOD >= STRIKE {
+        return None;
+    }
+    usize::try_from((unix_seconds / PERIOD) % count as u64).ok()
+}
+
 /// The faults a level injects, and whether the rotation strikes: nothing at
 /// `Calm`; at `Realistic` the rotation alone, so between its faults
 /// everything is green (the owner, 2026-10-06); above it the realistic
@@ -168,6 +182,16 @@ mod tests {
 
     fn rotation() -> Rotation {
         Rotation::new(Parties::configured().over_every_transport())
+    }
+
+    #[test]
+    fn a_served_strike_goes_round_the_locations_by_the_turn_alone() {
+        let turns: Vec<Option<usize>> = (0..4)
+            .map(|turn| struck(3, turn * PERIOD + STRIKE - 1))
+            .collect();
+        assert_eq!(turns, [Some(0), Some(1), Some(2), Some(0)]);
+        assert_eq!(struck(3, PERIOD + STRIKE), None, "after its first seconds");
+        assert_eq!(struck(0, 0), None, "no Location, no strike");
     }
 
     #[test]

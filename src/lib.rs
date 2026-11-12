@@ -57,6 +57,7 @@ pub mod contracts;
 pub mod curve;
 pub mod daily_backlog;
 pub mod database;
+pub mod documents;
 pub mod drop_box;
 pub mod environment;
 pub mod eventing;

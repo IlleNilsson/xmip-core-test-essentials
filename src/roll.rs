@@ -4,19 +4,27 @@
 //! is the cluster process's.
 
 mod nodes;
+pub mod orders;
+pub mod round;
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use observe::topology::window::Window;
-use observe::{Run, now_unix_nanos};
+use observe::{Activity, Run, Snapshot, now_unix_nanos};
 use xaudit::program_audit::ProgramAudit;
 
 use crate::carried::Carried;
 use crate::cluster::{Orders, Spawned, cluster_binary};
 use crate::drop_box::Dropping;
 use crate::environment;
+use crate::far_end::FarEnd;
+use crate::in_process::InProcess;
+use crate::real::RealNode;
+use crate::rotation::leveled;
 use crate::scenario::{ROUND_TRIP, drives};
 use crate::served::Served;
+use crate::stress::Stress;
 use crate::{Roster, Spread, cluster_topology, image, process_audit};
 
 pub use nodes::{Nodes, nodes};
@@ -76,22 +84,31 @@ pub fn leave(
 /// The topology of this round's `snapshot`, where a cluster process ran
 /// (`spawned`) or nodes real or started as xmip-service published
 /// (`real`): a run with no cluster process too, whose every node is one of
-/// those. The hops between nodes are the cluster process's alone, counted
-/// by its simulated relay. What moved — each link's rate, each drawn
-/// thing's activity — is stated by `window`, the one the roll keeps over its
-/// rounds (`observe::topology::window`; ADR-0052, amendment 2026-11-10).
+/// those. The hops between simulated nodes are the cluster process's,
+/// counted by its simulated relay; what each node the run reads drew of
+/// itself, `drawings` by its name — its Party links, a Receive Location
+/// feeding its Subscription, the traffic a Storage node measured from and
+/// to the other nodes — is merged in, the node owning what is beneath it
+/// but for a mood the roll's snapshot holds worse, a Location's delivery
+/// verdict among them (`observe::Topology::merge`; ADR-0052, amendment
+/// 2026-11-11). What moved — each link's rate, each drawn thing's activity
+/// — is stated by `window`, the one the roll keeps over its rounds
+/// (`observe::topology::window`; ADR-0052, amendment 2026-11-10).
 #[must_use]
 pub fn drawn(
     snapshot: &observe::Snapshot,
-    (spawned, real): (Option<&Spawned>, bool),
+    (spawned, real, drawings): (Option<&Spawned>, &[String], &[(String, observe::Topology)]),
     (roster, relayed, spread): (&Roster, bool, &Spread),
     window: &mut Window,
 ) -> Option<observe::Topology> {
-    (spawned.is_some() || real).then(|| {
+    (spawned.is_some() || !real.is_empty()).then(|| {
         let hops = spawned.map_or(&[][..], Spawned::hops);
         let handed = relayed && spawned.is_some();
         let now = now_unix_nanos();
-        let mut drawn = cluster_topology(snapshot, roster, handed, hops, spread, now);
+        let mut drawn = cluster_topology(snapshot, roster, handed, hops, (spread, real), now);
+        for (name, drawing) in drawings {
+            drawn.merge(name, drawing);
+        }
         window.state(&mut drawn, snapshot);
         drawn
     })
@@ -177,6 +194,102 @@ pub fn relayed(chosen: &[String], roster: &Roster) -> Result<bool, String> {
     roster.refusal().map_or(Ok(true), Err)
 }
 
+/// Whether the run reads every node and simulates none — every node started
+/// as `xmip-service` or on a machine of its own — so it carries only the
+/// configured flows, with real documents (`carried.rs`), and runs none of
+/// the scenarios in its own process: the 86-transport matrix belongs to the
+/// simulated runs and the cargo tests (the owner, 2026-11-10 22:40;
+/// ADR-0028, amendment 2026-11-11). Decided by the roster alone: none of
+/// its nodes simulated, and `read` the rest.
+#[must_use]
+pub fn served_only(simulated: &Roster, read: &[String]) -> bool {
+    simulated.is_empty() && !read.is_empty()
+}
+
+/// Whether the run reads every node ([`served_only`]), refused where a
+/// scenario is named for such a run ([`in_process_refused`]) or where it
+/// has nothing to carry: every node read and no Receive Location placed on
+/// them, so nothing would run at all — never the scenarios in the roll's
+/// own process instead. `carried`, where the run drives Locations, is told
+/// whether the fault every fifty seconds strikes at `stress`
+/// (`rotation::leveled`).
+///
+/// # Errors
+///
+/// REFUSED, in words, as above.
+pub fn reading(
+    chosen: &[String],
+    (simulated, read): (&Roster, &[String]),
+    carried: Option<&mut Carried>,
+    stress: Stress,
+) -> Result<bool, String> {
+    let served = served_only(simulated, read);
+    in_process_refused(chosen, served)?;
+    let Some(carried) = carried else {
+        return if served {
+            Err(format!(
+                "REFUSED: every node of this run is read ({}) and no Receive Location of the \
+                 cluster's flows is placed on them, so there is nothing to carry; place the \
+                 Applications on the nodes the environment made, or run with simulated nodes",
+                read.join(", ")
+            ))
+        } else {
+            Ok(false)
+        };
+    };
+    carried.strike(leveled(stress).1);
+    Ok(served)
+}
+
+/// The run's first lines said: `first`, which nodes of `real` answered
+/// where, and the Parties' far end where one is served.
+pub fn announce(mut first: Vec<String>, real: &[RealNode], far_end: Option<&FarEnd>) {
+    first.extend(crate::run::found(real));
+    first.extend(far_end.map(FarEnd::said));
+    for line in first {
+        println!("{line}");
+    }
+}
+
+/// One round of the scenarios the roll runs itself, on `simulated` time;
+/// an empty snapshot where it runs none.
+pub fn ticked(in_process: Option<&mut InProcess>, simulated: Duration) -> Snapshot {
+    in_process.map_or_else(Snapshot::new, |in_process| in_process.tick(simulated))
+}
+
+/// What the run did recently, for the activity file: the scenarios' where
+/// the roll runs them, Carried's where it reads every node, `idle` where
+/// neither.
+#[must_use]
+pub fn activity<'a>(
+    (in_process, carried): (Option<&'a InProcess>, Option<&'a Carried>),
+    idle: &'a Activity,
+) -> &'a Activity {
+    in_process
+        .map(InProcess::activity)
+        .or_else(|| carried.map(Carried::activity))
+        .unwrap_or(idle)
+}
+
+/// Whether the scenarios `chosen` can run: in a run that reads every node
+/// none can, and one named is REFUSED in words before anything starts
+/// (ADR-0055); nothing named is the configured flows alone.
+///
+/// # Errors
+///
+/// REFUSED, naming the scenarios, where every node is read.
+pub fn in_process_refused(chosen: &[String], served_only: bool) -> Result<(), String> {
+    if !served_only || chosen.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "REFUSED: {} cannot run where every node is read: such a run carries the cluster's \
+         configured flows with real documents and nothing else; name no test, or run the \
+         scenarios with simulated nodes",
+        chosen.join(", ")
+    ))
+}
+
 /// One cluster process, told the nodes to spawn and the scenarios chosen,
 /// over the shared directory it will own. Nothing is spawned when no node was
 /// named; a cluster that cannot start is said so, audited as the failure to
@@ -222,6 +335,41 @@ mod tests {
 
     fn roster(text: &str) -> Roster {
         Roster::parse(text).expect("a well-formed roster")
+    }
+
+    #[test]
+    fn a_run_reading_every_node_carries_the_flows_alone_and_refuses_a_scenario() {
+        let none = Roster::default();
+        let read = names(&[test_cluster().node(0).name.as_str()]);
+        assert!(served_only(&none, &read), "decided by the roster");
+        assert!(!served_only(&none, &[]), "nothing read, nothing served");
+        let simulated = roster(&test_cluster().node(1).name);
+        assert!(!served_only(&simulated, &read), "a node simulated");
+        assert_eq!(in_process_refused(&[], true), Ok(()));
+        let refused = in_process_refused(&names(&["heavy-load"]), true).expect_err("refused");
+        assert!(refused.starts_with("REFUSED: heavy-load"), "{refused}");
+        assert_eq!(in_process_refused(&names(&["heavy-load"]), false), Ok(()));
+    }
+
+    /// Every node read and none of the flows placed on them: refused in
+    /// words, never the scenarios in the roll's own process instead
+    /// (ADR-0028, amendment 2026-11-11).
+    #[test]
+    fn a_run_of_read_nodes_with_nothing_placed_on_them_is_refused() {
+        let read = names(&[test_cluster().node(0).name.as_str()]);
+        let none = Roster::default();
+        let refused =
+            reading(&[], (&none, &read), None, Stress::Realistic).expect_err("nothing to carry");
+        assert!(
+            refused.starts_with("REFUSED") && refused.contains("no Receive Location"),
+            "{refused}"
+        );
+        let simulated = roster(&test_cluster().node(1).name);
+        assert_eq!(
+            reading(&[], (&simulated, &read), None, Stress::Realistic),
+            Ok(false),
+            "a run with simulated nodes runs its scenarios"
+        );
     }
 
     #[test]
@@ -289,7 +437,7 @@ mod tests {
         let mut round = |received| {
             drawn(
                 &published(&receiving, received),
-                (None, true),
+                (None, std::slice::from_ref(&receiving), &[]),
                 (&roster, false, &spread),
                 &mut window,
             )
@@ -306,6 +454,56 @@ mod tests {
         };
         assert_eq!(into(&first), Some(0.0), "nothing to measure from yet");
         assert!(into(&later).is_some_and(|rate| rate > 0.0), "{later:?}");
+    }
+
+    /// ADR-0052, amendment 2026-11-11: what a node the run reads drew of
+    /// itself joins the roll's drawing, so the traffic its Storage node
+    /// measured travels between the nodes, at the rate the roll's window
+    /// states over its rounds.
+    #[test]
+    fn a_read_nodes_drawing_joins_the_cluster_and_its_traffic_moves_between_nodes() {
+        let receiving = test_cluster().with_role("receiving").name.clone();
+        let roster = roster(&format!("{receiving}=receiving"));
+        let spread = crate::Parties::configured().spread(&["tcp"]);
+        let storage = test_cluster().with_role("storage").name.clone();
+        let (from, to) = (format!("node/{receiving}"), format!("node/{storage}"));
+        let crossing = |volume| observe::Topology {
+            links: vec![observe::TopologyLink {
+                id: format!("{from}→{to}"),
+                from: from.clone(),
+                to: to.clone(),
+                pattern: observe::Pattern::PublishConsume,
+                origin: observe::Origin::Observed,
+                protocol: observe::topology::XMIP_STORAGE.to_string(),
+                state: observe::Health::Fine,
+                volume,
+                rate: 0.0,
+                latency_ms: 0.0,
+                progress: 0.0,
+                attempts: 0,
+                evidence: String::new(),
+            }],
+            ..observe::Topology::default()
+        };
+        let mut window = Window::new();
+        let names = [receiving.clone(), storage.clone()];
+        let mut round = |volume| {
+            let drawings = [(storage.clone(), crossing(volume))];
+            drawn(
+                &published(&receiving, 0),
+                (None, &names, &drawings),
+                (&roster, false, &spread),
+                &mut window,
+            )
+            .expect("drawn")
+        };
+        let (_, later) = (round(0), round(6));
+        let between = later
+            .links
+            .iter()
+            .find(|link| link.from == from && link.to == to)
+            .expect("the traffic between the nodes is drawn");
+        assert!(between.rate > 0.0, "{between:?}");
     }
 
     #[test]

@@ -62,6 +62,12 @@ party = { package = "xmip-core-party", git = "https://github.com/IlleNilsson/xmi
 runtime = { package = "xmip-core-runtime", git = "https://github.com/IlleNilsson/xmip-core-runtime", branch = "main" }
 configure = { package = "xmip-core-configure", git = "https://github.com/IlleNilsson/xmip-core-configure", branch = "main" }
 route = { package = "xmip-core-route", git = "https://github.com/IlleNilsson/xmip-core-route", branch = "main" }
+# What the Parties' documents are routed by, read as a node reads it: the
+# `content` route technology over the `edi` path language, made where
+# xmip-service makes it (`ContentSource::linked`), so the rig knows the Send
+# Port each document it drops is routed to by the product's own routing and
+# no second rule (`src/documents.rs`; ADR-0046, amendment 2026-11-11).
+route_content = { package = "xmip-core-route-content", git = "https://github.com/IlleNilsson/xmip-core-route-content", branch = "main", features = ["edi"] }
 # Where a paused Subscription's pause and what it holds are kept, so both
 # survive the node: the node's own embedded Storage node — RocksDB for the
 # Ledger, SQLite for the administration database — sealed under a

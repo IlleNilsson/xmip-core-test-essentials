@@ -86,7 +86,6 @@ use std::sync::Arc;
 use observe::Snapshot;
 use observe::publication::write_atomic;
 use xaudit::program_audit::ProgramAudit;
-use xmip_core_test_essentials::cluster::merge;
 use xmip_core_test_essentials::eventing::Eventing;
 use xmip_core_test_essentials::node_arguments::{Arguments, USAGE, parse};
 use xmip_core_test_essentials::operator_orders;
@@ -201,13 +200,13 @@ fn main() -> ExitCode {
         let mut snapshot = Snapshot::new();
         for relay in &mut relays {
             let ticked = relay.tick();
-            merge(&mut snapshot, &ticked);
+            snapshot.merge(&ticked);
         }
         if let Some(exclusive_claim) = exclusive_claim.as_mut() {
-            merge(&mut snapshot, &exclusive_claim.tick());
+            snapshot.merge(&exclusive_claim.tick());
         }
         if let Some(daily_backlog) = daily_backlog.as_mut() {
-            merge(&mut snapshot, &daily_backlog.tick());
+            snapshot.merge(&daily_backlog.tick());
         }
         record_capability(&mut snapshot, &node, &arguments);
         operator_orders::take(shared, &node, &eventing, subscribing.as_deref(), &audit);

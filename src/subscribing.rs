@@ -4,8 +4,16 @@
 //! The Essentials' `RoundTrip` test runs the Xmip Applications held as
 //! sections of the Essentials' cluster configuration,
 //! `configuration/cluster.xmip` — business flows an ERP runs with its Parties —
-//! each Subscription picking up a family of content contracts and routing it
-//! to a Send Port the send stage serves (ADR-0028, amendment 2026-10-13).
+//! each Subscription picking up one kind of document by its message type and
+//! recipient and routing it to a Send Port the send stage serves (ADR-0028,
+//! amendments 2026-10-13 and 2026-11-11). A pair is the round trip's
+//! payload over its transport, never a document a Subscription reads: what
+//! the process stage publishes for it is the round's document, the Parties'
+//! and the ERP's own (`documents.rs`), and that Message's own bytes are what
+//! is promoted and routed, as a node promotes and routes what it took. The
+//! pair's bytes ride beside it in what the node holds, and go on to the send
+//! stage unchanged. Until 2026-11-11 a document's properties routed a pair
+//! whose Message carried the pair's bytes.
 //! A node that declared process writes the cluster's file with the run's
 //! names and the bindings that place every Application on the run's nodes,
 //! read from the sections, never named here; it slices its own configuration from it as
@@ -35,13 +43,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use codec::cursor::Cursor;
-use codec::field::{read_text, text};
+use codec::field::{counted, read_counted, read_text, text};
 use context::MessageContext;
 use journey::{Journey, JourneyState, Received};
 use message::{Message, MessageSection, MessageTreatment};
 use observe::{Act, Snapshot};
 use persist::storage::{Embedded, XmipStorage};
-use route::{Gathering, Promoted, publish};
+use route::{Gathering, publish};
 use runtime::configured_subscription::ConfiguredSubscription;
 use runtime::dead_message::Unmatched;
 use runtime::ledger::{CHUNK, Publisher, write_stream};
@@ -53,8 +61,8 @@ use xaudit::origin::Origin;
 use xaudit::program_audit::ProgramAudit;
 use xcore::{IdGenerator, MessageId, SectionId, StreamId, SystemClock, UuidV7Generator};
 
+use crate::documents::{Document, Documents};
 use crate::handoff::Handoff;
-use crate::ledger_stream::read_whole;
 use crate::roster::Roster;
 use crate::schedule::CONTRACTS;
 
@@ -79,6 +87,10 @@ pub struct Subscribing {
     /// it names none, its Sends holding no sequence.
     gathering: Gathering,
     cluster: String,
+    /// The Parties' and the ERP's documents, and what the filters read of
+    /// one: a pair is routed as the round's document is (`documents.rs`).
+    documents: Documents,
+    relayed: Vec<Document>,
 }
 
 /// A held pair let go of to hand on, and its Journey.
@@ -119,6 +131,7 @@ impl Subscribing {
         let pickup = Pickup::open(node, configured, Arc::clone(&storage), Some(audit.clone()))?;
         let cluster = runtime::running::publication::cluster_location(&tree.service.cluster_name);
         let send = SendStep::new((&cluster, node), Arc::clone(&storage), &tree.tuning, None);
+        let documents = Documents::shipped()?;
         let published_at = designed
             .iter()
             .filter_map(|application| {
@@ -137,11 +150,13 @@ impl Subscribing {
             pickup,
             storage,
             origin: runtime::running::origin(Some(audit), node),
-            gathering: Gathering::of(&[], &tree.subscriptions),
+            gathering: Gathering::new(&[], &[]),
             subscriptions: tree.subscriptions,
             send,
             sends: Sends::default(),
             cluster,
+            relayed: documents.routable(),
+            documents,
         })
     }
 
@@ -153,9 +168,14 @@ impl Subscribing {
     /// Its Publication was not taken, in words: nothing of it is held, and
     /// it is not handed on.
     pub fn route(&self, handoff: &Handoff) -> Result<bool, String> {
-        let promoted = Promoted::new()
-            .set("file.name", handoff.contract.file_name(handoff.round))
-            .set("Transport", handoff.transport.as_str());
+        // The round's document is the Message published: its own bytes are
+        // what is promoted and routed, as a node routes what it took.
+        let round = usize::try_from(handoff.round).unwrap_or(0);
+        let document = self
+            .relayed
+            .get(round % self.relayed.len().max(1))
+            .ok_or("REFUSED: the Essentials ship no document to publish a pair as")?;
+        let promoted = self.documents.promoted(&document.bytes)?;
         let routing = publish(&promoted, &self.subscriptions);
         let picked = routing.evaluations.iter().find(|one| one.matched());
         let location = picked
@@ -168,7 +188,7 @@ impl Subscribing {
             .map_or("", |(_, location)| location.as_str());
         let ids = UuidV7Generator;
         let stream = StreamId::new(ids.next_u128());
-        let mut bytes = handoff.bytes.as_slice();
+        let mut bytes = document.bytes.as_slice();
         let kept = write_stream(self.storage.as_ref(), stream, &mut bytes, CHUNK)?;
         let section = MessageSection {
             section_id: SectionId::new(ids.next_u128()),
@@ -308,13 +328,12 @@ impl Subscribing {
                 .unreadable(released, "its Journey does not read");
             return Ok(None);
         };
-        let Some(held) = journey.messages().last().copied() else {
+        if journey.messages().is_empty() {
             self.pickup
                 .unreadable(released, "its Journey holds no Message");
             return Ok(None);
-        };
-        let bytes = read_whole(&self.storage, held.stream_id)?;
-        let Some(handoff) = pair(&released.held.hold.body, bytes) else {
+        }
+        let Some(handoff) = pair(&released.held.hold.body) else {
             self.pickup
                 .unreadable(released, "it is not a pair this node held");
             return Ok(None);
@@ -346,7 +365,8 @@ fn storage(shared: &Path, name: &str) -> Result<Arc<dyn XmipStorage>, String> {
 }
 
 /// What the node keeps beside a held pair to hand it on once it is
-/// resumed: what the pair is, its bytes being its Stream's.
+/// resumed: what the pair is, and its bytes — the Message's Stream is the
+/// document it was published as.
 fn said(handoff: &Handoff) -> Vec<u8> {
     let mut out = Vec::new();
     for field in [
@@ -357,14 +377,16 @@ fn said(handoff: &Handoff) -> Vec<u8> {
     ] {
         text(&mut out, field);
     }
+    counted(&mut out, &handoff.bytes);
     out
 }
 
-/// The pair a held one was, its Stream's `bytes` with what was said of it.
-fn pair(said: &[u8], bytes: Vec<u8>) -> Option<Handoff> {
+/// The pair a held one was, from what was said of it.
+fn pair(said: &[u8]) -> Option<Handoff> {
     let mut cursor = Cursor::new(said);
     let mut next = || read_text(&mut cursor).ok();
     let (transport, contract, round, from) = (next()?, next()?, next()?, next()?);
+    let bytes = read_counted(&mut cursor).ok()?.to_vec();
     Some(Handoff {
         transport,
         contract: CONTRACTS
@@ -396,32 +418,23 @@ mod tests {
         configure::applications(CLUSTER).expect("the shipped configuration reads")
     }
 
-    /// The id of the Subscription the shipped configuration picks up
-    /// `contract` by, and the Send Port it routes to.
-    fn routing(contract: Contract) -> (String, String) {
-        let promoted = Promoted::new().set("file.name", contract.file_name(0));
+    /// The id of the Subscription the round's document is picked up by, and
+    /// the Send Port it routes to, read from the configuration.
+    fn routing(round: u64) -> (String, String) {
+        let documents = Documents::shipped().expect("read");
+        let relayed = documents.routable();
+        let document = &relayed[usize::try_from(round).expect("small") % relayed.len()];
+        let promoted = documents.promoted(&document.bytes).expect("promoted");
         designed()
             .into_iter()
             .flat_map(|application| application.subscriptions)
             .find(|subscription| subscription.filter.evaluate(&promoted).holds())
             .map(|subscription| (subscription.id, subscription.destination.name().to_string()))
-            .expect("every contract is picked up")
+            .expect("every document is picked up")
     }
 
     #[test]
-    fn every_contract_is_picked_up_by_one_subscription_of_the_configuration() {
-        let subscriptions: Vec<_> = designed()
-            .into_iter()
-            .flat_map(|application| application.subscriptions)
-            .collect();
-        for contract in CONTRACTS {
-            let promoted = Promoted::new().set("file.name", contract.file_name(0));
-            let picking = subscriptions
-                .iter()
-                .filter(|subscription| subscription.filter.evaluate(&promoted).holds())
-                .count();
-            assert_eq!(picking, 1, "{}", contract.name());
-        }
+    fn the_shipped_applications_read_and_a_pair_routes_as_its_rounds_document() {
         for application in designed() {
             assert!(
                 application.problems().is_empty(),
@@ -429,15 +442,20 @@ mod tests {
                 application.problems()
             );
         }
+        let routable = Documents::shipped().expect("read").routable().len() as u64;
+        assert_eq!(
+            routing(1),
+            routing(1 + routable),
+            "the same document a turn later"
+        );
     }
-
-    fn pair(contract: Contract, round: u64) -> Handoff {
+    fn pair(round: u64) -> Handoff {
         Handoff {
             transport: "tcp".to_string(),
-            contract,
+            contract: Contract::Json,
             round,
             from: test_cluster().with_role("receiving").name.clone(),
-            bytes: contract.payload(),
+            bytes: Contract::Json.payload(),
         }
     }
 
@@ -457,11 +475,17 @@ mod tests {
             .collect();
         configured.sort();
         assert_eq!(names, configured, "every Application's, by id");
-        // The Subscription that picks up JSON, which picks up XML too, and
-        // the Send Port it routes to: read from the configuration.
-        let (id, port) = routing(Contract::Json);
-        assert_eq!(routing(Contract::Xml).0, id);
-        assert_ne!(routing(Contract::Csv).0, id);
+        // The Subscription the first round's document is picked up by, two
+        // later rounds it picks up too, one another takes, and the Send Port
+        // it routes to: read from the configuration.
+        let (id, port) = routing(1);
+        let same: Vec<u64> = (2..60)
+            .filter(|round| routing(*round).0 == id)
+            .take(2)
+            .collect();
+        let other = (2..60)
+            .find(|round| routing(*round).0 != id)
+            .expect("another's");
         let structured = snapshot
             .subscriptions()
             .find(|s| s.name == id)
@@ -481,24 +505,18 @@ mod tests {
         );
         assert!(
             structured.configuration.contains(&port)
-                && structured.configuration.contains("'json-%'"),
+                && structured.configuration.contains("content:edi:UNH/2/1"),
             "{}",
             structured.configuration
         );
 
-        let routed = |subscribing: &Subscribing, contract, round| {
-            subscribing
-                .route(&pair(contract, round))
-                .expect("published")
-        };
-        assert!(routed(&subscribing, Contract::Json, 1), "picked up");
+        let routed =
+            |subscribing: &Subscribing, round| subscribing.route(&pair(round)).expect("published");
+        assert!(routed(&subscribing, 1), "picked up");
         subscribing.act(&id, Act::Pause, "ilian").expect("paused");
-        assert!(!routed(&subscribing, Contract::Json, 2), "held");
-        assert!(!routed(&subscribing, Contract::Xml, 3), "held");
-        assert!(
-            routed(&subscribing, Contract::Csv, 4),
-            "another Subscription's"
-        );
+        assert!(!routed(&subscribing, same[0]), "held");
+        assert!(!routed(&subscribing, same[1]), "held");
+        assert!(routed(&subscribing, other), "another Subscription's");
         drop(subscribing);
 
         let again = started(&shared, &audit);
@@ -513,8 +531,18 @@ mod tests {
         again.act(&id, Act::Resume, "ilian").expect("resumed");
         let released = again.released();
         let rounds: Vec<u64> = released.iter().map(|one| one.handoff.round).collect();
-        assert_eq!(rounds, [2, 3], "oldest first, nothing lost");
-        assert_eq!(released[1].handoff.bytes, Contract::Xml.payload());
+        assert_eq!(rounds, same, "oldest first, nothing lost");
+        assert_eq!(released[1].handoff.bytes, Contract::Json.payload());
+        // What a held pair published is the round's document itself: the
+        // bytes promoted and routed, never the pair's (`route`).
+        let documents = Documents::shipped().expect("read");
+        let relayed = documents.routable();
+        let message = released[1].journey.messages().last().copied();
+        let stream = message.expect("its Message").stream_id;
+        let bytes = crate::ledger_stream::read_whole(&again.storage, stream).expect("read");
+        let round = usize::try_from(same[1]).expect("small");
+        assert_eq!(bytes, relayed[round % relayed.len()].bytes);
+        assert_eq!(documents.routed(&bytes), [port], "by its own bytes");
         let mut released = released.into_iter();
         let first = released.next().expect("round 2");
         again.done(first, &Err("the send stage is gone".to_string()));

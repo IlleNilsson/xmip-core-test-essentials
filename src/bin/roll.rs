@@ -100,21 +100,21 @@ use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use observe::History;
-use observe::now_unix_nanos;
 use observe::topology::window::Window;
+use observe::{Activity, History, Snapshot, now_unix_nanos};
 use xaudit::program_audit::ProgramAudit;
-use xmip_core_test_essentials::cluster::{Orders, merge};
+use xmip_core_test_essentials::cluster::Orders;
 use xmip_core_test_essentials::drop_box::Dropping;
 use xmip_core_test_essentials::environment::{self, max_seconds, time_factor};
-use xmip_core_test_essentials::far_end::FarEnd;
 use xmip_core_test_essentials::in_process::InProcess;
 use xmip_core_test_essentials::operator_orders;
 use xmip_core_test_essentials::publication::Publication;
 use xmip_core_test_essentials::real;
+use xmip_core_test_essentials::roll::orders::Carrying;
+use xmip_core_test_essentials::roll::round::{Drawing, Rolling, assembled, scenarios};
 use xmip_core_test_essentials::roll::{
-    Nodes, Ran, declared, drawn, leave, nodes, relayed, say_started, shared, spawn_cluster,
-    the_publication,
+    Nodes, Ran, activity, announce, declared, leave, nodes, reading, relayed, say_started, shared,
+    spawn_cluster, the_publication,
 };
 use xmip_core_test_essentials::run::{announced, found};
 use xmip_core_test_essentials::{
@@ -150,18 +150,24 @@ fn main() {
         far_end,
     } = or_refuse(&audit, nodes(&cluster, &base));
     let relayed = or_refuse(&audit, relayed(&chosen, &simulated));
-    let run = started(&cluster, &chosen, &roster, stress, &real_names);
+    // Every node read, none simulated: the configured flows with real
+    // documents, and nothing else (ADR-0028, amendment 2026-11-11).
+    let served_only = or_refuse(
+        &audit,
+        reading(&chosen, (&simulated, &real_names), carried.as_mut(), stress),
+    );
+    let tests = (chosen.as_slice(), served_only);
+    let run = started(&cluster, tests, &roster, stress, &real_names);
 
     let spread = Parties::configured().over_every_transport();
-    let mut first = announced(&cluster, stress, &roster, &spread);
-    first.extend(found(&real_nodes));
-    first.extend(far_end.as_ref().map(FarEnd::said));
-    for line in first {
-        println!("{line}");
-    }
+    let first = announced(&cluster, stress, &roster, &spread);
+    announce(first, &real_nodes, far_end.as_ref());
 
-    // Every scenario this process runs itself (`in_process.rs`).
-    let mut in_process = InProcess::new(root, &base, stress, chosen.clone(), relayed);
+    // Every scenario this process runs itself (`in_process.rs`): none where
+    // every node is read.
+    let mut in_process = scenarios(served_only, || {
+        InProcess::new(root, &base, stress, chosen.clone(), relayed)
+    });
     // The Parties' bursts into the drop box the receiving nodes share.
     let mut dropping = relayed.then(|| Dropping::new(&shared(&base)));
 
@@ -173,8 +179,14 @@ fn main() {
     // The nodes take an operator's orders under the directory they share,
     // and every snapshot says where (ADR-0065, amendment 2026-09-29; ADR-0013,
     // amendment 2026-09-30).
-    let publication = Publication::of(&cluster, run.clone(), audit.clone())
-        .taking_orders(&operator_orders::orders(&shared(&base)));
+    let orders = operator_orders::orders(&shared(&base));
+    let publication = Publication::of(&cluster, run.clone(), audit.clone()).taking_orders(&orders);
+    // A node the run reads takes its orders over its operate listener: each
+    // carried to it as it is left (`roll/orders.rs`).
+    let _carrying = or_refuse(
+        &audit,
+        Carrying::reaching(&orders, root, &real_nodes, &audit),
+    );
     say_started(&audit, (&run, &spread), limit, &publication.snapshot);
 
     // One cluster per roll (ADR-0028), and since 2026-09-19 a process of its
@@ -196,6 +208,12 @@ fn main() {
     // What moved over the last half minute of rounds, stated on each
     // round's drawing (ADR-0052, amendment 2026-11-10).
     let mut window = Window::new();
+    let idle = Activity::with_capacity(1);
+    // What the real nodes and those started as xmip-service published, and
+    // what each drew of itself.
+    let mut reading =
+        |snapshot: &mut Snapshot, now| real::published_into(&real_nodes, root, snapshot, now);
+    let drawing = Drawing::of(&roster, relayed, &spread, &real_names);
     loop {
         round += 1;
 
@@ -204,18 +222,17 @@ fn main() {
         // level's own count of nodes was sized the same way.
         let headroom = Headroom::refresh();
 
-        let mut snapshot = in_process.tick(budget.simulated_elapsed());
-        // The cluster's own file, and what the real nodes and those started
-        // as xmip-service published, from both of which the topology draws.
-        if let Some(spawned) = spawned.as_mut() {
-            merge(&mut snapshot, spawned.tick());
-        }
-        real::published_into(&real_nodes, root, &mut snapshot, now_unix_nanos());
-        let drawing = (spawned.as_ref(), !real_nodes.is_empty());
-        let topology = drawn(&snapshot, drawing, (&roster, relayed, &spread), &mut window);
-        if let Some(carried) = carried.as_mut() {
-            carried.round(root, &mut snapshot, now_unix_nanos());
-        }
+        // The scenarios, the cluster's own file, what the nodes the run
+        // reads published and drew, Carried's verdicts, and the drawing from
+        // all of them: one round, assembled in one place (`roll::round`).
+        let rolling = Rolling {
+            in_process: in_process.as_mut(),
+            spawned: spawned.as_mut(),
+            reading: &mut reading,
+            carried: carried.as_mut(),
+        };
+        let at = (now_unix_nanos(), budget.simulated_elapsed());
+        let (mut snapshot, topology) = assembled(root, at, rolling, &drawing, &mut window);
 
         // Every scope's series, and the rollup at the root that the history
         // file is written from: a scenario counts beneath the node, so a roll
@@ -225,17 +242,15 @@ fn main() {
             dropping.round(root, &mut snapshot, now_unix_nanos());
         }
         record_round(&mut history, root, &snapshot);
-        publication.round(root, &snapshot, topology, &history, in_process.activity());
+        let activity = activity((in_process.as_ref(), carried.as_ref()), &idle);
+        publication.round(root, &snapshot, topology, &history, activity);
 
-        if live {
-            redraw(root, round, &snapshot);
-            if let Some(line) = found(&real_nodes) {
-                println!("{line}");
-            }
-            println!("  publishing to {}", publication.snapshot.display());
-        } else {
-            summarize(root, round, &snapshot);
-        }
+        said(
+            (live, round),
+            (root, &snapshot),
+            &real_nodes,
+            &publication.snapshot,
+        );
         println!("  headroom: {}", headroom.describe());
 
         if limit.is_some_and(|limit| round >= limit) || budget.expired() {
@@ -256,6 +271,26 @@ fn main() {
         (spawned, served),
         (&base, &cluster_path),
     );
+}
+
+/// What a round says on the console: drawn whole where a person watches it
+/// live — the board, which real nodes answered and where it publishes — and
+/// summed in a line otherwise.
+fn said(
+    (live, round): (bool, u64),
+    (root, snapshot): (&str, &Snapshot),
+    real: &[real::RealNode],
+    published: &std::path::Path,
+) {
+    if live {
+        redraw(root, round, snapshot);
+        if let Some(line) = found(real) {
+            println!("{line}");
+        }
+        println!("  publishing to {}", published.display());
+    } else {
+        summarize(root, round, snapshot);
+    }
 }
 
 /// Asked where a cluster publishes, it answers the same way: the names are

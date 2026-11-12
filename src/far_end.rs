@@ -79,7 +79,7 @@ impl FarEnd {
             enrolled.push((placement.folded(), password));
             let directory = match placement.placed {
                 Placed::Receive => Directory::default(),
-                Placed::Send => Directory::default().telling(told(arrived)),
+                Placed::Send => Directory::default().telling(told(arrived, &placement.name)),
             };
             let shared: Shared = Arc::new(std::sync::Mutex::new(directory));
             directories.insert(placement.folded(), Arc::clone(&shared));

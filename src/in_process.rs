@@ -13,7 +13,6 @@ use std::time::Duration;
 
 use observe::{Activity, Snapshot};
 
-use crate::cluster::merge;
 use crate::environment::load_bytes;
 use crate::scenario::{DAILY_BACKLOG, EXCLUSIVE_CLAIM, ROUND_TRIP, drives};
 use crate::{
@@ -77,25 +76,25 @@ impl InProcess {
         let chosen = &self.chosen;
         let mut snapshot = Snapshot::new();
         if drives(chosen, ROUND_TRIP) && !self.relayed {
-            merge(&mut snapshot, &self.round_trip.tick());
+            snapshot.merge(&self.round_trip.tick());
         }
         if drives(chosen, "low-latency") {
-            merge(&mut snapshot, &self.low_latency.tick());
+            snapshot.merge(&self.low_latency.tick());
         }
         if drives(chosen, "heavy-load") {
-            merge(&mut snapshot, &self.heavy_load.tick());
+            snapshot.merge(&self.heavy_load.tick());
         }
         if drives(chosen, "retention") {
-            merge(&mut snapshot, &self.retention.tick(simulated));
+            snapshot.merge(&self.retention.tick(simulated));
         }
         if drives(chosen, "filing") {
-            merge(&mut snapshot, &self.filing.tick());
+            snapshot.merge(&self.filing.tick());
         }
         if drives(chosen, EXCLUSIVE_CLAIM) {
-            merge(&mut snapshot, &self.exclusive_claim.tick());
+            snapshot.merge(&self.exclusive_claim.tick());
         }
         if drives(chosen, DAILY_BACKLOG) {
-            merge(&mut snapshot, &self.daily_backlog.tick());
+            snapshot.merge(&self.daily_backlog.tick());
         }
         snapshot
     }

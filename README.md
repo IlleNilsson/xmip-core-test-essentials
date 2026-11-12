@@ -21,7 +21,7 @@ Moved here from ADR-0028 on 2026-09-12; the record keeps the decisions.
 
 RoundTrip is the first test, not the only one. Each scenario asks a different
 question of the same estate over the same [`RoundTrip`] adapters, and publishes
-under its own subtree of `xmip:///essentials`, merged into one snapshot so the
+under its own subtree of `xmip:///<cluster>`, merged into one snapshot so the
 rollup covers them all and an operator drills scenario → detail → the failing
 leaf. 2026-09-19, the owner: the old scenario wording is replaced by the test
 names everywhere; the scope segment is the name in kebab case (`round-trip`,
@@ -177,14 +177,30 @@ bindings that place the Applications on them, file Locations over the
 run's folders, placed by configure's one placement (`configure::placed`). D1 and D2 keep Xmip Storage, the primary
 and its standby; every other node reaches them over Xmip's mutual TLS. The
 roll reads each at its local endpoint, `xmip-<cluster>-<node>`, as a real
-node, and **drives them** (`src/carried.rs`): each round a file into each
-bound Receive Location, the next content contract each time, named
-`<contract>-<number>`, which the file's Subscriptions route by
-(`file.name`) to a Send Port another node sends; `<cluster>/carried` says
-how many arrived, how long each took, and Done for one lost. The run ends
-their input to stop them, once every file had its time to arrive. The
-cluster process is given the simulated nodes alone, and only they carry the
-relayed scenarios. A node on a machine of its own is driven through the
+node, and **drives them** (`src/carried.rs`): the rig is the Parties and
+the company's ERP, and each round drops into each bound Receive Location
+the next of that Location's own documents — real UN/EDIFACT D.24A
+interchanges in `documents/<Location>/` (`src/documents.rs`), named
+`<document>-<number>.edi` — which the cluster's Subscriptions route by their
+message type and recipient, promoted from the document (`content:edi:UNH/2/1`,
+`content:edi:UNB/3/1`), to a Send Port another node sends. Beneath each
+Receive Location on its node, `…/receive/<Location>/delivery` says how many
+arrived whole where their route sends them, how long each took, and Done
+for one lost, at another Send Port or with other bytes. At Realistic stress
+every fifty seconds one Receive Location's Party also sends a document no
+Subscription takes (`documents/unrouted/`); the node keeps it in its Dead
+Message Queue, and that Location's verdict is Stressed for the strike. A
+run of such nodes runs nothing else: no scenario in the roll's own process,
+`[run] tests` says only Carried, a test named for it is REFUSED, and so is
+such a run with no Receive Location placed on its nodes; the 86-transport
+matrix runs where nodes are simulated, and in the cargo tests (ADR-0028,
+amendment 2026-11-11). Each round is assembled in one place,
+`roll::round::assembled`: Carried's verdicts are recorded before the
+drawing, so a struck Location is drawn as the Monitor shows it. A file
+judged is taken off its Send Port's folder, and an arrival let go of, so
+nothing the rig keeps grows with the run's age. The run ends their input to stop them,
+once every file had its time to arrive. The cluster process is given the
+simulated nodes alone, and only they carry the relayed scenarios. A node on a machine of its own is driven through the
 Parties' far end (`src/far_end.rs`): the roll serves SFTP on this computer,
 port 7422, each Location the environment placed on the real nodes a user of
 its own, drops into the Receive Locations' and is told of what the Send
@@ -329,7 +345,9 @@ exactly as a node publishes its own.
 
 Each program in `src/bin` keeps its `main`, and its parts are the library's:
 the cluster's in `cluster.rs`, the roll's in `roll.rs` (the run's nodes, as
-it sorts them, in `roll/nodes.rs`), and a node's command line in
+it sorts them, in `roll/nodes.rs`; each round, assembled, in
+`roll/round.rs`; the orders carried to the nodes it reads in
+`roll/orders.rs`), and a node's command line in
 `node_arguments.rs`. The style gate reads `src/bin` as it reads the rest
 since 2026-11-11; until then it skipped every directory called `bin` as
 .NET's output, and the roll and the node had grown past 400 lines unread.
@@ -402,7 +420,16 @@ merge health, and the roll's snapshot says where the nodes take orders —
 `<shared>/orders`, beneath the directory the cluster shares. A surface over
 that snapshot leaves a pause, resume or remove there; the node that holds the
 Event subscription takes it at its next round (`src/operator_orders.rs`),
-applies it to its hub and publishes what came of it.
+applies it to its hub and publishes what came of it. A node started as
+`xmip-service`, or on a machine of its own, takes orders only over its
+operate listener: the roll watches each such node's place beneath
+`<shared>/orders` and carries an order left there to the node the moment it
+is left, as the run's tester (`src/roll/orders.rs`; ADR-0028, amendment
+2026-11-11). Every table of a snapshot — health, counts, Subscriptions,
+Event subscriptions, unheard members, the Dead Message Queue and the failed
+Messages — reaches the roll's through observe's one merge
+(`Snapshot::merge`), so a Replay, Retry or Dismiss is offered on what the
+nodes really hold.
 
 ### A node that processes routes by real Subscriptions, 2026-09-30
 
@@ -414,11 +441,16 @@ its Parties, order to cash and procure to pay, their Receive Locations,
 Send Ports and Subscriptions named by the documents they move and the Party
 they move them with — sales orders, purchase order responses, goods
 receipts, inventory reports and remittance advices in; order responses,
-despatch advices, invoices (a second Send Location for failover), purchase
+dispatch advices, invoices (a second Send Location for failover), purchase
 orders, item master and payments out — and never by the protocol: that is
 each Location's transport, which the operation tools show (the owner,
-2026-10-13; ADR-0028, amendment 2026-10-13). Each Subscription picks up a
-family of content contracts, and together they pick up every one once. A
+2026-10-13; ADR-0028, amendment 2026-10-13). Since 2026-11-11 the company's
+ERP is in the flows too, two Receive Locations of its documents and five
+Send Ports to it, and each Subscription picks up one kind of document by its
+message type and recipient, so every document is picked up once; what a
+processing node publishes for a relayed pair is the round's document
+itself, routed by its own bytes, the pair's bytes riding beside it to the
+send stage unchanged (`src/documents.rs`, `src/subscribing.rs`). A
 node that declared process writes the cluster's file with the run's names
 and the bindings that place every Application on the run's nodes — read
 from the sections, never named in the code — slices its own configuration from it as

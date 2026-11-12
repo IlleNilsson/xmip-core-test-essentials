@@ -21,10 +21,13 @@
 
 use std::net::ToSocketAddrs;
 use std::path::Path;
+use std::sync::Arc;
 
 use node::Capability;
-use observe::{Health, HealthRecord, Publication, Snapshot};
+use observe::{Health, HealthRecord, Order, Publication, Snapshot, Topology};
 use runtime::plane::{Outcome, Remote};
+
+use crate::roll::orders::Act;
 
 use crate::environment;
 use crate::roster::Roster;
@@ -64,12 +67,24 @@ pub fn sorted(cluster: &str, roster: Roster) -> Result<Sorted, String> {
 }
 
 /// What every real node publishes now, read over its operate listener into
-/// `snapshot` beneath `root`'s scope of it, as [`RealNode::published_into`].
-pub fn published_into(real: &[RealNode], root: &str, snapshot: &mut Snapshot, now: i64) {
-    for node in real {
-        let scope = format!("{root}/node/{}", node.name);
-        node.published_into(&scope, snapshot, now);
-    }
+/// `snapshot` beneath `root`'s scope of it, as [`RealNode::published_into`];
+/// and what each drew of itself, by its name, for the roll to merge into its
+/// drawing of the cluster (`observe::Topology::merge`; ADR-0052, amendment
+/// 2026-11-11).
+#[must_use]
+pub fn published_into(
+    real: &[RealNode],
+    root: &str,
+    snapshot: &mut Snapshot,
+    now: i64,
+) -> Vec<(String, Topology)> {
+    real.iter()
+        .filter_map(|node| {
+            let scope = format!("{root}/node/{}", node.name);
+            let drawn = node.published_into(&scope, snapshot, now)?;
+            Some((node.name.clone(), drawn))
+        })
+        .collect()
 }
 
 /// A node on a machine of its own, as it answered.
@@ -80,7 +95,7 @@ pub struct RealNode {
     pub address: String,
     /// What it declared it can do.
     pub capability: Capability,
-    remote: Remote,
+    remote: Arc<Remote>,
 }
 
 impl RealNode {
@@ -96,7 +111,31 @@ impl RealNode {
             name: name.to_string(),
             address: format!("the local endpoint {endpoint}"),
             capability,
-            remote: Remote::local(endpoint, std::time::Duration::ZERO)?,
+            remote: Arc::new(Remote::local(endpoint, std::time::Duration::ZERO)?),
+        })
+    }
+
+    /// An operator's order carried to this node over its operate listener,
+    /// as the identity the rig proves there — the run's tester, whom every
+    /// node lists among its operators — and audited by the node as any act
+    /// (ADR-0028, amendment 2026-11-11).
+    #[must_use]
+    pub fn acting(&self) -> Act {
+        let (remote, name) = (Arc::clone(&self.remote), self.name.clone());
+        Arc::new(move |order: &Order| {
+            let refused = |why: &str| {
+                format!(
+                    "REFUSED: {} '{}' on {name}: {why}",
+                    order.act.word(),
+                    order.target
+                )
+            };
+            let thing = (order.noun.word(), order.target.as_str(), order.act.word());
+            match remote.act(0, &order.node, thing) {
+                Ok((Outcome::Taken, _)) => Ok(()),
+                Ok((_, said)) => Err(refused(&said)),
+                Err(why) => Err(refused(&why)),
+            }
         })
     }
 
@@ -121,22 +160,30 @@ impl RealNode {
     }
 
     /// What the node publishes now, read over its operate listener, into
-    /// `snapshot`, beneath its own scope; where it does not answer, that is
-    /// recorded at `<node>/reached`, with why, and nothing else of it.
-    pub fn published_into(&self, scope: &str, snapshot: &mut Snapshot, now: i64) {
+    /// `snapshot`, beneath its own scope, and what it drew of itself; where
+    /// it does not answer, that is recorded at `<node>/reached`, with why,
+    /// and nothing else of it.
+    pub fn published_into(
+        &self,
+        scope: &str,
+        snapshot: &mut Snapshot,
+        now: i64,
+    ) -> Option<Topology> {
         let read = self
             .remote
             .publication()
             .and_then(|(_, text)| Publication::read(&text));
         let reached = format!("{scope}/reached");
-        let (health, evidence) = match read {
+        let (health, evidence, drawn) = match read {
             Ok(publication) => {
-                crate::cluster::merge(snapshot, &publication.snapshot());
-                (Health::Fine, format!("real, at {}", self.address))
+                snapshot.merge(&publication.snapshot());
+                let at = format!("real, at {}", self.address);
+                (Health::Fine, at, publication.topology)
             }
             Err(problem) => (
                 Health::Exhausted,
                 format!("real, at {}, did not answer: {problem}", self.address),
+                None,
             ),
         };
         snapshot.record_health(HealthRecord {
@@ -146,6 +193,7 @@ impl RealNode {
             evidence,
             observed_unix_nanos: now,
         });
+        drawn
     }
 }
 
@@ -183,7 +231,7 @@ pub fn found(
             name: name.clone(),
             address,
             capability,
-            remote,
+            remote: Arc::new(remote),
         });
     }
     Ok(real)

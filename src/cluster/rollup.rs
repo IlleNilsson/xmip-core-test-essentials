@@ -1,5 +1,6 @@
-//! The cluster's rollup of its nodes, and the merge that assembles a cluster
-//! view from what each node published (ADR-0027 decision 8).
+//! The cluster's rollup of its nodes (ADR-0027 decision 8). The merge that
+//! assembles a cluster view from what each node published is observe's,
+//! `Snapshot::merge`, every table of it.
 
 use observe::{Health, HealthRecord, Snapshot};
 
@@ -46,24 +47,5 @@ pub(super) fn rollup(snapshot: &Snapshot, count: usize, now: i64) -> HealthRecor
         severity,
         evidence,
         observed_unix_nanos: now,
-    }
-}
-
-/// Copy every health record, count, Subscription and Event subscription
-/// from one snapshot into another. Scopes are disjoint per scenario and per
-/// node, and a Subscription and an Event subscription are each their node's,
-/// so nothing collides.
-pub fn merge(into: &mut Snapshot, from: &Snapshot) {
-    for record in from.health_records() {
-        into.record_health(record.clone());
-    }
-    for count in from.all_counts() {
-        into.record_count(count.clone());
-    }
-    for subscription in from.subscriptions() {
-        into.record_subscription(subscription.clone());
-    }
-    for subscription in from.event_subscriptions() {
-        into.record_event_subscription(subscription.clone());
     }
 }

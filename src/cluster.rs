@@ -56,7 +56,6 @@ pub use idle::IdlePass;
 pub(crate) use liveness::Liveness;
 use member::Member;
 pub use orders::Orders;
-pub use rollup::merge;
 use rollup::rollup;
 pub use spawned::Spawned;
 
@@ -224,7 +223,7 @@ impl Cluster {
         if self.changed {
             let mut view = Snapshot::new();
             for (node, record) in self.nodes.iter().zip(records) {
-                merge(&mut view, &node.published);
+                view.merge(&node.published);
                 view.record_health(record);
             }
             view.record_health(rollup(&view, self.nodes.len(), now));

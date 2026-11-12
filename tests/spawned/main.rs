@@ -20,7 +20,6 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use configure::fixture::TestCluster;
 use observe::{HealthRecord, Snapshot};
-use xmip_core_test_essentials::cluster::merge;
 
 /// Held for the whole of each test, so this program's tests run one at a
 /// time. Each stands up node processes that work every core they find, and
@@ -66,7 +65,7 @@ fn path_roster(cluster: &TestCluster) -> String {
 
 /// `from` merged into `into`.
 fn merge_into(mut into: Snapshot, from: &Snapshot) -> Snapshot {
-    merge(&mut into, from);
+    into.merge(from);
     into
 }
 
