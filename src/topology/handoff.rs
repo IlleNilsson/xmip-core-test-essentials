@@ -3,6 +3,7 @@
 
 use node::Stage;
 use observe::topology::draw::{mood, node_id, worst};
+use observe::topology::{Relation, link_id, relate};
 use observe::{Origin, Pattern, Snapshot, TopologyLink};
 
 use crate::handoff::Hop;
@@ -57,23 +58,10 @@ pub(super) fn handoff_links(
 
 /// Every pair of stages the roster configures a handoff between: receive to
 /// process, process to send, over the nodes that declared each, in the order
-/// they were named.
+/// they were named — the one pairing of the cluster's relations
+/// (`observe::topology::relate::handed`; ADR-0052, amendment 2026-11-13).
 fn configured_pairs(roster: &Roster) -> Vec<Pair> {
-    [
-        (Stage::Receive, Stage::Process),
-        (Stage::Process, Stage::Send),
-    ]
-    .into_iter()
-    .flat_map(|(from, to)| {
-        let receivers = roster.with(to);
-        roster.with(from).into_iter().flat_map(move |sender| {
-            receivers
-                .clone()
-                .into_iter()
-                .map(move |receiver| (sender.to_string(), from, receiver.to_string(), to))
-        })
-    })
-    .collect()
+    relate::handed(&roster.members())
 }
 
 /// One handoff link, drawn from what is known of its pair.
@@ -103,12 +91,17 @@ fn link(snapshot: &Snapshot, pair: &Pair, configured: bool, count: u64) -> Topol
             format!("{count} handoffs {sender} to {receiver}, which no configuration declares"),
         ),
     };
+    let (from, to) = (
+        format!("{}/{}", node_id(sender), from.name()),
+        format!("{}/{}", node_id(receiver), to.name()),
+    );
     TopologyLink {
-        id: format!("handoff/{sender}/{}/{receiver}/{}", from.name(), to.name()),
-        from: format!("{}/{}", node_id(sender), from.name()),
-        to: format!("{}/{}", node_id(receiver), to.name()),
+        id: link_id(&from, &to, Relation::Traffic),
+        from,
+        to,
         pattern: Pattern::SendReceive,
         origin,
+        relation: Relation::Traffic,
         protocol: "handoff".to_string(),
         state,
         volume: count,

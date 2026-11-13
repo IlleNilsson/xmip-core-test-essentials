@@ -19,6 +19,7 @@
 //! where neither declares a role.
 
 use node::{Capability, NodeRole, Stage};
+use observe::topology::relate::Member;
 
 use crate::verdict::Contract;
 
@@ -32,6 +33,10 @@ use crate::verdict::Contract;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Roster {
     nodes: Vec<(String, Capability)>,
+    /// Each Storage node's place in the cluster file's `[storage] nodes`
+    /// (`configure::cluster::storage_places`): none for a roster `--nodes`
+    /// gave.
+    places: Vec<(String, u32)>,
 }
 
 impl Roster {
@@ -43,6 +48,7 @@ impl Roster {
                 .iter()
                 .map(|name| (name.clone(), Capability::none()))
                 .collect(),
+            places: Vec::new(),
         }
     }
 
@@ -61,14 +67,18 @@ impl Roster {
             let (name, capability) = Capability::from_entry(entry);
             nodes.push((name.to_string(), capability?));
         }
-        Ok(Self { nodes })
+        Ok(Self {
+            nodes,
+            places: Vec::new(),
+        })
     }
 
     /// The roster a cluster's `cluster.xmip` declares: the nodes under its
     /// `[nodes]`, in the order of their names, each declaring the roles its
     /// `roles` says (`configure::cluster::roles`) and nothing where it says
-    /// none. The one place a roll's nodes come from (ADR-0056, amendment
-    /// 2026-10-03: names are configuration).
+    /// none, and each Storage node `[storage] nodes` lists at its place there
+    /// (`configure::cluster::storage_places`). The one place a roll's nodes
+    /// come from (ADR-0056, amendment 2026-10-03: names are configuration).
     ///
     /// # Errors
     ///
@@ -85,7 +95,10 @@ impl Roster {
                 }
             })
             .collect();
-        Self::parse(&entries.join(","))
+        Ok(Self {
+            places: configure::cluster::storage_places(cluster)?,
+            ..Self::parse(&entries.join(","))?
+        })
     }
 
     /// The roster as `--nodes` takes it back.
@@ -104,6 +117,25 @@ impl Roster {
         self.nodes.iter().map(|(name, _)| name.as_str()).collect()
     }
 
+    /// Every node as the cluster's drawing relates and stands it: the roles
+    /// it declares and, a Storage node `[storage] nodes` lists, its place
+    /// there (`observe::topology::relate`; ADR-0052 and ADR-0056, amendments
+    /// 2026-11-13), in the order they were named.
+    #[must_use]
+    pub fn members(&self) -> Vec<Member> {
+        self.nodes
+            .iter()
+            .map(|(name, capability)| {
+                let place = self
+                    .places
+                    .iter()
+                    .find(|(listed, _)| listed == name)
+                    .map(|(_, place)| *place);
+                Member::new(name, capability.roles(), place)
+            })
+            .collect()
+    }
+
     /// The same roster without the nodes named in `real`: what the rig
     /// simulates where some nodes run on machines of their own and are
     /// never spawned (ADR-0028, amendment 2026-10-21).
@@ -116,6 +148,7 @@ impl Roster {
                 .filter(|(name, _)| !real.iter().any(|one| one.eq_ignore_ascii_case(name)))
                 .cloned()
                 .collect(),
+            places: self.places.clone(),
         }
     }
 

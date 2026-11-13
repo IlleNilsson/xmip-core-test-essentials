@@ -63,6 +63,8 @@ fn store(snapshot: &Snapshot, names: &[&str]) -> TopologyNode {
         load: 0.0,
         activity: 0.0,
         evidence,
+        roles: String::new(),
+        place: None,
     }
 }
 
@@ -103,6 +105,7 @@ fn link(name: &str, what: &str, state: Health, evidence: String) -> TopologyLink
         to: SHARED.to_string(),
         pattern: Pattern::PublishConsume,
         origin: Origin::Both,
+        relation: observe::Relation::Traffic,
         protocol: "file".to_string(),
         state,
         volume: 0,

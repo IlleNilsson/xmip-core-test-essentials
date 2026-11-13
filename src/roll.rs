@@ -469,11 +469,12 @@ mod tests {
         let (from, to) = (format!("node/{receiving}"), format!("node/{storage}"));
         let crossing = |volume| observe::Topology {
             links: vec![observe::TopologyLink {
-                id: format!("{from}→{to}"),
+                id: observe::topology::link_id(&from, &to, observe::Relation::WritesInto),
                 from: from.clone(),
                 to: to.clone(),
                 pattern: observe::Pattern::PublishConsume,
                 origin: observe::Origin::Observed,
+                relation: observe::Relation::WritesInto,
                 protocol: observe::topology::XMIP_STORAGE.to_string(),
                 state: observe::Health::Fine,
                 volume,

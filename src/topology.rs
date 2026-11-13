@@ -26,7 +26,7 @@ mod handoff;
 mod shared;
 
 use observe::Topology;
-use observe::topology::{draw, party};
+use observe::topology::{draw, layout, party, relate};
 
 use crate::handoff::Hop;
 use crate::parties::Spread;
@@ -38,11 +38,13 @@ use crate::support::cluster_root;
 /// node per name on the roster, each node's stages and their endpoints, the
 /// handoff links — configured where `relayed` says the run hands `RoundTrip`
 /// along the stages the roster declares, observed where a hop was
-/// delivered — the Parties outside them, each over its own transports as
-/// `spread` says for a simulated node, and the one Party a running node
-/// draws itself with (`party::ANY_PARTY`) for each node the run reads,
-/// `read`, whose endpoints are its Locations; and the shared store with its
-/// links when a node ran a test over it.
+/// delivered — every node related by its roles and the order of `[storage]
+/// nodes` (`observe::topology::relate`), the Parties outside them, each over
+/// its own transports as `spread` says for a simulated node, and for each
+/// node the run reads, `read`, whose endpoints are its Locations, the
+/// TX-Party and RX-Party facing it, as a running node draws itself
+/// (`party::facing`), numbered in the order the nodes stand on the map; and
+/// the shared store with its links when a node ran a test over it.
 #[must_use]
 pub fn cluster_topology(
     snapshot: &observe::Snapshot,
@@ -53,13 +55,20 @@ pub fn cluster_topology(
     now: i64,
 ) -> Topology {
     let names: Vec<&str> = roster.names();
+    let members = roster.members();
     let root = cluster_root();
     let mut topology = Topology {
         source: format!("essentials — cluster {}", draw::label(&root)),
         observed_unix_nanos: now,
-        nodes: draw::members(snapshot, &root, &names),
+        nodes: draw::members(snapshot, &root, &members),
         links: Vec::new(),
     };
+    // Every node related by its roles, configured, before any traffic: what
+    // each node's own drawing measured joins it as the roll merges them
+    // (ADR-0052 and ADR-0056, amendments 2026-11-13).
+    topology
+        .links
+        .extend(relate::relations(&root, &members, snapshot));
     let configured = relayed.then_some(roster);
     topology
         .links
@@ -83,15 +92,20 @@ pub fn cluster_topology(
             name,
             sends: Some(sends),
             receives: Some(receives),
-            transports: &[],
         })
         .collect();
-    let (served, simulated): (Vec<&str>, Vec<&str>) = names
-        .iter()
-        .partition(|name| read.iter().any(|one| one == *name));
+    let reads = |name: &&str| read.iter().any(|one| one == *name);
+    let simulated: Vec<&str> = names.iter().copied().filter(|name| !reads(name)).collect();
     party::draw(snapshot, &root, &simulated, &parties, &mut topology);
-    let anyone = [party::Party::everywhere(party::ANY_PARTY)];
-    party::draw(snapshot, &root, &served, &anyone, &mut topology);
+    // A node the run reads cannot say which Parties its Locations take: one
+    // TX-Party and one RX-Party facing it, numbered across the cluster in
+    // the order its nodes stand on the map, never by a name.
+    let served: Vec<&str> = layout::place_order(&members)
+        .into_iter()
+        .map(|member| member.node.as_str())
+        .filter(reads)
+        .collect();
+    party::facing(snapshot, &root, &served, &[], &mut topology);
     shared::draw(snapshot, &names, &mut topology);
     topology
 }
@@ -324,7 +338,7 @@ mod tests {
         let links: Vec<(String, String, &str, &str, u64)> = topology
             .links
             .iter()
-            .filter(|link| !link.id.starts_with("party/"))
+            .filter(|link| !link.from.starts_with("party/") && !link.to.starts_with("party/"))
             .map(|link| {
                 (
                     link.from.clone(),
@@ -492,7 +506,19 @@ mod tests {
         cluster_topology(&snapshot, &roster(), true, &[], (&spread(), &[]), 9)
     }
 
-    fn link_in<'t>(topology: &'t Topology, id: &str) -> &'t observe::TopologyLink {
+    /// The link between the Party and the node `party/<side>/<party>/<node>`
+    /// says, by the one id rule (`observe::topology::link_id`).
+    fn link_in<'t>(topology: &'t Topology, said: &str) -> &'t observe::TopologyLink {
+        let [_, side, party, node] = said.splitn(4, '/').collect::<Vec<_>>()[..] else {
+            panic!("{said} names a side, a Party and a node");
+        };
+        let box_id = format!("party/{side}/{party}");
+        let (from, to) = if side == "sending" {
+            (box_id, format!("node/{node}/receive"))
+        } else {
+            (format!("node/{node}/send"), box_id)
+        };
+        let id = observe::topology::link_id(&from, &to, observe::Relation::Traffic);
         topology
             .links
             .iter()
@@ -625,11 +651,13 @@ mod tests {
         assert_eq!(back.topology, Some(topology));
     }
 
-    /// ADR-0018, amendment 2026-11-11: a node the run reads is drawn with
-    /// the Party a running node draws itself with, `any-party`, on each side
-    /// its stages face, never the simulated Parties over transports.
+    /// ADR-0018, amendment 2026-11-11, and ADR-0052, amendment 2026-11-13: a
+    /// node the run reads is drawn with the Parties a running node draws
+    /// itself with, the TX-Party sending into it and the RX-Party it delivers
+    /// to, on each side its stages face, never the simulated Parties over
+    /// transports.
     #[test]
-    fn a_read_node_is_drawn_with_any_party_on_each_side_it_faces() {
+    fn a_read_node_is_drawn_with_the_party_facing_it_on_each_side() {
         let [receiving, _, sending, _] = nodes();
         let read = [receiving.clone(), sending.clone()];
         let drawn = cluster_topology(&published(), &roster(), false, &[], (&spread(), &read), 9);
@@ -643,19 +671,26 @@ mod tests {
             format!("node/{receiving}/receive"),
             format!("node/{sending}/send"),
         );
-        assert!(
-            ids.contains(&("party/sending/any-party", into.as_str())),
-            "{ids:?}"
+        let (tx, rx) = (
+            format!("party/sending/node/{receiving}"),
+            format!("party/receiving/node/{sending}"),
         );
-        assert!(
-            ids.contains(&(out.as_str(), "party/receiving/any-party")),
-            "{ids:?}"
-        );
+        assert!(ids.contains(&(tx.as_str(), into.as_str())), "{ids:?}");
+        assert!(ids.contains(&(out.as_str(), rx.as_str())), "{ids:?}");
         assert!(
             ids.iter()
                 .filter(|(from, to)| *to == into || *from == out)
-                .all(|(from, to)| from.contains("any-party") || to.contains("any-party")),
+                .all(|(from, to)| *from == tx || *to == rx),
             "a read node faces no simulated Party: {ids:?}"
+        );
+        let label = |id: &str| find(&drawn, id).label.clone();
+        assert_eq!(
+            (label(&tx), label(&rx)),
+            ("TX-Party 1".to_string(), "RX-Party 1".to_string()),
+            "labelled by its side, numbered per side"
         );
     }
 }
+
+#[cfg(test)]
+mod by_role;

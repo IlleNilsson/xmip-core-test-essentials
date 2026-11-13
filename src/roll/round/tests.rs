@@ -59,6 +59,8 @@ fn published(
             load: 0.0,
             activity: 0.0,
             evidence: "its own".to_string(),
+            roles: String::new(),
+            place: None,
         };
         let own = Topology {
             nodes: vec![endpoint],
