@@ -40,8 +40,8 @@ pub const USAGE: &str = "usage: node --name <name> --shared <dir> --stress <leve
      --snapshot <path> [--interval-ms <ms>] [--beat-ms <ms>] [--online true|false] \
      [--role receiving,processing] [--nodes <name[=role+role],...>] \
      [--scenarios <scenarios>]\n\
-     example: node --name R1 --shared shared --stress calm --rounds 0 \
-     --snapshot R1.xmip --role receiving\n\
+     example: node --name RX1 --shared shared --stress calm --rounds 0 \
+     --snapshot RX1.xmip --role receiving\n\
      The name is the tester's and means nothing to Xmip; --role says what the node is for.";
 
 /// `--flag value` pairs, every required one present and well-formed.

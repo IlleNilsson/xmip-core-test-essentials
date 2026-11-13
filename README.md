@@ -174,7 +174,7 @@ across runs in .local-work/essentials/authority (ADR-0028, amendment
 2026-10-27), each plane on loopback — the Storage nodes' names in
 `[storage] nodes` resolved to the addresses they serve at — and the
 bindings that place the Applications on them, file Locations over the
-run's folders, placed by configure's one placement (`configure::placed`). D1 and D2 keep Xmip Storage, the primary
+run's folders, placed by configure's one placement (`configure::placed`). DS1 and DS2 keep Xmip Storage, the primary
 and its standby; every other node reaches them over Xmip's mutual TLS. The
 roll reads each at its local endpoint, `xmip-<cluster>-<node>`, as a real
 node, and **drives them** (`src/carried.rs`): the rig is the Parties and
@@ -319,10 +319,10 @@ purpose Test where it starts (ADR-0053):
 
 ```text
 xmip-essentials-roll             the test: chooses scenarios, sets stress, judges, draws
-└─ xmip-essentials-cluster C1    the cluster: owns the shared store, spawns and watches
-   ├─ xmip-essentials-node R1     the nodes, one process each
-   ├─ xmip-essentials-node P1
-   └─ xmip-essentials-node S1
+└─ xmip-essentials-cluster CL1   the cluster: owns the shared store, spawns and watches
+   ├─ xmip-essentials-node RX1   the nodes, one process each
+   ├─ xmip-essentials-node PX1
+   └─ xmip-essentials-node TX1
 ```
 
 The **roll** keeps what a test driver owns: the scenarios that stay in its own
@@ -368,15 +368,15 @@ node's own reader, never from its command line (ADR-0053, amendment
 amendment 2026-09-20). The owner, reading eleven identical rows: *these
 process names do not tell an operator or developer much. … Cluster, Node
 and test suite shall be incorporated in the process name.* So a roll on
-cluster `C1` over nodes `R1`, `P1` and `S1` — names the tester chose, which
+cluster `CL1` over nodes `RX1`, `PX1` and `TX1` — names the tester chose, which
 mean nothing to Xmip — is
 
 ```text
-xmip-essentials-C1-cluster
-xmip-essentials-C1-node-P1
-xmip-essentials-C1-node-R1
-xmip-essentials-C1-node-S1
-xmip-essentials-C1-roll
+xmip-essentials-CL1-cluster
+xmip-essentials-CL1-node-PX1
+xmip-essentials-CL1-node-RX1
+xmip-essentials-CL1-node-TX1
+xmip-essentials-CL1-roll
 ```
 
 A process name is its image file's name and a running process cannot be
@@ -394,7 +394,7 @@ as do this crate's own tests. Because a node's name is the last word of its
 process name, it is a file name: the same shape a cluster's name takes, and
 nothing further. A node may be called `roll` — the owner, 2026-09-20: *a node
 is a node and can have one or more roles, roll is something different* — and
-reads as `xmip-essentials-C1-node-roll`, which is no roll of anything. The
+reads as `xmip-essentials-CL1-node-roll`, which is no roll of anything. The
 marker is what keeps the kinds apart, so no name is refused to make the shape
 convenient; only a name no file can carry is REFUSED before anything spawns.
 
@@ -483,7 +483,7 @@ record. Under `cargo test` the variable is `target/audit`
 operating system's log.
 
 Since 2026-09-29 each says whose it is on every record: the location it
-declares — `xmip:///C1` for the roll and its cluster, `xmip:///C1/node/R1`
+declares — `xmip:///CL1` for the roll and its cluster, `xmip:///CL1/node/RX1`
 for a node — through `ProgramAudit::locate` where it declares itself, so the
 Audit view, `xmip audit` and `Get-XmipAudit` group a run's records by
 cluster and node and never read a process name (ADR-0062, amendment
@@ -512,7 +512,7 @@ the one declaration and `NodeRole::declared` the one parse: `--role`,
 `--nodes` and a published capability record all read through it, and
 `node::Stage` is the message-path stage every verdict, hop and scope here
 uses. The declaration itself — the evidence a node publishes and the
-`R1=receiving` entry a run lists — is `node::Capability`; `capability.rs`
+`RX1=receiving` entry a run lists — is `node::Capability`; `capability.rs`
 keeps only the `--role`/`--online` flags the cluster starts a node process
 with. A word is lowercase exactly (the owner, 2026-09-24), and an unknown
 word is REFUSED by name, never dropped (open problem 25, row i). Placement —
@@ -526,13 +526,13 @@ ADR-0022 that placement must satisfy node capability. `Start-XmipTest` kept
 one shorthand at the operator's door for a day longer, and on 2026-09-20 the
 owner struck that too: *Rn, Pn and Sn are arbitrary node names* (ADR-0056,
 amendment). **Nowhere in Xmip is a node's name read.** A named node carries
-what `-NodeRole @{ R1 = 'receiving' }` states for it and nothing else; a
+what `-NodeRole @{ RX1 = 'receiving' }` states for it and nothing else; a
 node given none declares none, and `Start-XmipTest` says so in words before it
 spawns anything. Omit `-Nodes` and the Essentials' own `cluster.xmip` declares
-them. What leaves PowerShell is a cluster file, `[nodes.R1] roles =
+them. What leaves PowerShell is a cluster file, `[nodes.RX1] roles =
 "receiving"` — a declaration, not a name.
-The examples here name clusters `C1`, `C2` and nodes `R1`, `P1`, `S1`, as the
-owner does when he tests (ADR-0056, amendment 2026-09-25): the letter reminds
+The examples here name clusters `CL1`, `CL2` and nodes `RX1`, `PX1`, `TX1`, as the
+owner names them (ADR-0056, amendment 2026-11-12): the letters remind
 the person, and the declaration beside it is all Xmip reads.
 
 **Nodes run the test that was named.** The roll passes the scenarios it was
@@ -678,8 +678,8 @@ nodes, or name each file taken twice and by whom and each never taken.
 **The run says what it was started with** (`run.rs` fills `observe::Run`): the snapshot carries a
 `[run]` table — `cluster`, `tests`, `nodes`, `roles`, `online`, `stress` —
 that a reader which does not know it skips, and the web GUI shows as one line
-on every view. `roles` is what each node was started with, `R1=receiving` or
-`P1=processing+sending`, a node that declared nothing listed by name alone.
+on every view. `roles` is what each node was started with, `RX1=receiving` or
+`PX1=processing+sending`, a node that declared nothing listed by name alone.
 
 
 
@@ -716,7 +716,7 @@ own environment, never yours: `-Stress` is `XMIP_ESSENTIALS_STRESS`
 `-Nodes` and `-NodeRole` are the run's cluster file,
 `<Path>/<Cluster>.xmip`, which `XMIP_TEST_CLUSTER` names (the nodes to
 simulate, one process each, each declaring the roles `-NodeRole` gives it —
-`[nodes.R1] roles = "receiving"`; a node it does not name declares nothing,
+`[nodes.RX1] roles = "receiving"`; a node it does not name declares nothing,
 and nothing here is worked out from a name; an empty list is a cluster of no
 nodes; omitted, the file holds every node the Essentials' own file declares,
 and the run record says the nodes and the file; the names `-Nodes` typed are
@@ -763,7 +763,7 @@ be workable by 2026-12-16. `Core.Demo` proves a tree is (ADR-0028, amendment
 the Essentials is:
 
 ```powershell
-Start-XmipTest -Suite Core.Demo -Cluster C1 -Stress Realistic -Tester alice@example.org
+Start-XmipTest -Suite Core.Demo -Cluster CL1 -Stress Realistic -Tester alice@example.org
 Get-XmipTestStatus                        # the part it is on, then OK or FAILED
 Get-XmipTestResult -Suite Core.Demo       # every part, in words, with the reason
 Stop-XmipTest -Suite Core.Demo            # what it started, then the run

@@ -14,7 +14,7 @@
 # --install --cluster` names the cluster, and each machine is given its
 # node's slice of this file.
 #
-# A node finds the others by name: `D1:7443` is the node D1, resolved as
+# A node finds the others by name: `DS1:7443` is the node DS1, resolved as
 # every name is, never "this machine". A path is relative to the node's
 # configuration file, so `tls/node.pem` is where the environment put this
 # node's certificate, whatever machine it is on.
@@ -37,47 +37,47 @@ key = "tls/node.key"
 anchors = "tls/anchors.pem"
 
 # Xmip Storage, reached by name over Xmip's mutual TLS with the node's own
-# certificate (ADR-0063; ADR-0067, amendment 2026-10-13). Only D1 and D2
+# certificate (ADR-0063; ADR-0067, amendment 2026-10-13). Only DS1 and DS2
 # keep it, each serving it on the Storage plane's port; every other node
 # reaches them (ADR-0056, amendment 2026-10-20). They are the primary and
 # its standby, as they settle it, the first listed the first primary
 # (ADR-0056, amendment 2026-10-22).
 [storage]
-nodes = ["D1:7443", "D2:7443"]
+nodes = ["DS1:7443", "DS2:7443"]
 listen = "0.0.0.0:7443"
 certificate = "tls/node.pem"
 key = "tls/node.key"
 anchors = "tls/anchors.pem"
 
-# The nodes, named as the owner names them (ADR-0056, amendment 2026-10-12):
-# Rn receiving, Pn processing, Sn sending, Ln low latency, On operation, Dn
-# Storage. What each does is its roles, never its letter.
+# The nodes, named as the owner names them (ADR-0056, amendment 2026-11-12):
+# RXn receiving, PXn processing, TXn sending, EXn executing, OPn operational
+# and monitoring, DSn Storage. What each does is its roles, never its letters.
 
-[nodes.R1]
+[nodes.RX1]
 roles = "receiving"
 
-[nodes.R2]
+[nodes.RX2]
 roles = "receiving"
 
-[nodes.P1]
+[nodes.PX1]
 roles = "processing"
 
-[nodes.S1]
+[nodes.TX1]
 roles = "sending"
 
-[nodes.S2]
+[nodes.TX2]
 roles = "sending"
 
-[nodes.L1]
+[nodes.EX1]
 roles = "executing"
 
-[nodes.O1]
+[nodes.OP1]
 roles = "operational, monitoring"
 
-[nodes.D1]
+[nodes.DS1]
 roles = "storage"
 
-[nodes.D2]
+[nodes.DS2]
 roles = "storage"
 
 # The Parties the cluster trades with (ADR-0019; ADR-0028, amendment

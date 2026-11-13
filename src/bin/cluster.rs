@@ -86,8 +86,8 @@ struct Arguments {
 const USAGE: &str = "usage: cluster --name <cluster> --shared <dir> \
      --nodes <a[=role+role],b,...> --stress <level> --rounds <n> \
      --snapshot <path> [--online <a,b>] [--scenarios <a,b>] [--interval-ms <ms>]\n\
-     example: cluster --name C1 --shared shared --nodes R1=receiving,P1=processing,S1=sending \
-     --stress calm --rounds 0 --snapshot C1-snapshot.xmip\n\
+     example: cluster --name CL1 --shared shared --nodes RX1=receiving,PX1=processing,TX1=sending \
+     --stress calm --rounds 0 --snapshot CL1-snapshot.xmip\n\
      The names are the tester's and mean nothing to Xmip; each node's roles are \
      what follows its =.";
 
