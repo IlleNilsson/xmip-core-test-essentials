@@ -9,8 +9,9 @@
 # Start-XmipTest's -Cluster names the cluster, and the run gives each node it
 # starts its addresses on loopback, its certificate from the run's
 # authority and the bindings, whose addresses are the run's own
-# directories (src/served.rs). On machines of their own
-# the environment template gives them (deploy/dsc): `xmip-service
+# directories, and, loopback losing no SYN, no connect's SYN sent again
+# (`[tuning] connect_retransmissions = 0`; src/served.rs). On machines of
+# their own the environment template gives them (deploy/dsc): `xmip-service
 # --install --cluster` names the cluster, and each machine is given its
 # node's slice of this file.
 #

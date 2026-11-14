@@ -57,7 +57,11 @@ pub(super) fn placed(
 /// endpoint named for the run's cluster, its operate listener on
 /// loopback, and the account the run runs as its one relay, for the
 /// tester's web host (`[operate] relay`), and the tester among its
-/// operators, by that account and by its operator certificate ([`testers`]).
+/// operators, by that account and by its operator certificate ([`testers`]);
+/// and, every connect of the run over loopback, where no SYN is lost, none
+/// sent again (`[tuning] connect_retransmissions`), so a stopped node's
+/// refusal is all a connect waits for. Machines of their own keep the
+/// default, a network's.
 pub(super) fn cluster_text(
     cluster: &str,
     declared: &[(String, Capability)],
@@ -82,6 +86,7 @@ pub(super) fn cluster_text(
     let mut file: Table = format!("{CLUSTER}\n{bound}")
         .parse()
         .map_err(|error| format!("the cluster's file: {error}"))?;
+    table(&mut file, &["tuning"]).insert("connect_retransmissions".to_string(), Value::Integer(0));
     let mut serving: Vec<(String, String)> = Vec::new();
     for (name, declares) in declared {
         if declares.roles().contains(&NodeRole::Storage) {
@@ -329,6 +334,9 @@ mod tests {
                 "{} relays the tester",
                 path.display()
             );
+            // Over loopback no SYN is lost: no connect of the run sends one
+            // again, each node's own slice says.
+            assert_eq!(retransmissions(path), Some(0), "{}", path.display());
         }
 
         // A run started once the tester holds that certificate lists the
@@ -354,6 +362,17 @@ mod tests {
             }
         }
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// The `[tuning] connect_retransmissions` the node configured at `path`
+    /// says, if it says one.
+    fn retransmissions(path: &Path) -> Option<i64> {
+        let text = std::fs::read_to_string(path).expect("the node's configuration");
+        let table: Table = text.parse().expect("TOML");
+        table
+            .get("tuning")
+            .and_then(|tuning| tuning.get("connect_retransmissions"))
+            .and_then(Value::as_integer)
     }
 
     // Whether the node configured at `path` relays for `through` the caller

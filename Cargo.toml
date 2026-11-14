@@ -270,7 +270,7 @@ contract_sql = { package = "xmip-core-contract-sql", git = "https://github.com/I
 # estate, JSON is reserved for memory and the wire (the owner's rule). serde
 # derives the shapes; toml serialises them.
 serde = { version = "1", features = ["derive"] }
-toml = "1"
+toml = "1.2.1"
 
 [features]
 # What the crate's programs that spawn its binaries read of a cluster beyond
@@ -302,6 +302,9 @@ required-features = ["test-support"]
 [dev-dependencies]
 # The test cluster's names, from its `cluster.xmip` (`configure::fixture`).
 configure = { package = "xmip-core-configure", git = "https://github.com/IlleNilsson/xmip-core-configure", branch = "main", features = ["test-support"] }
+# The timing program's figure, the fastest of five over its rounds
+# (`xcore::latency`). Test-only.
+xcore = { package = "xmip-core", git = "https://github.com/IlleNilsson/xmip-core", branch = "main", features = ["test-support"] }
 
 [lints.rust]
 # forbid, not deny: a module has no business writing unsafe. The one exception

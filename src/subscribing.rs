@@ -49,7 +49,7 @@ use journey::{Journey, JourneyState, Received};
 use message::{Message, MessageSection, MessageTreatment};
 use observe::{Act, Snapshot};
 use persist::storage::{Embedded, XmipStorage};
-use route::{Gathering, publish};
+use route::publish;
 use runtime::configured_subscription::ConfiguredSubscription;
 use runtime::dead_message::Unmatched;
 use runtime::ledger::{CHUNK, Publisher, write_stream};
@@ -83,9 +83,8 @@ pub struct Subscribing {
     /// It sends nothing itself: the send stage is a node of its own.
     send: SendStep,
     sends: Sends,
-    /// What a sequence's keys read, and the cluster they are named in:
-    /// it names none, its Sends holding no sequence.
-    gathering: Gathering,
+    /// The cluster its sequences are named in: it names none, its Sends
+    /// holding no sequence.
     cluster: String,
     /// The Parties' and the ERP's documents, and what the filters read of
     /// one: a pair is routed as the round's document is (`documents.rs`).
@@ -150,7 +149,6 @@ impl Subscribing {
             pickup,
             storage,
             origin: runtime::running::origin(Some(audit), node),
-            gathering: Gathering::new(&[], &[]),
             subscriptions: tree.subscriptions,
             send,
             sends: Sends::default(),
@@ -209,7 +207,6 @@ impl Subscribing {
             origin: &self.origin,
             send: &self.send,
             sends: &self.sends,
-            gathering: &self.gathering,
             cluster: &self.cluster,
         };
         // Published at the Location, holding no sequence there.
@@ -224,7 +221,7 @@ impl Subscribing {
             &through,
             &self.pickup,
             (location, (received, Vec::new())),
-            &message,
+            (&message, &promoted),
             &routing,
             &Unmatched {
                 promoted: Some(&promoted),

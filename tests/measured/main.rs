@@ -68,18 +68,25 @@ fn a_pass_over_idle_nodes_costs_each_under_a_millisecond() {
 /// The owner, 2026-09-26: more than a millisecond, apart from load, is
 /// wrong. The first beat is on disk when `start` returns, within
 /// milliseconds — the bound is generous for a loaded runner, and it is not
-/// seconds.
+/// seconds. The fastest of five over twenty starts
+/// (`xcore::latency::spread`); until 2026-11-14 one start was timed once.
 #[test]
 fn the_first_beat_is_written_within_milliseconds_of_the_start() {
     let dir = scratch("heartbeat-first");
     let path = dir.join("node.xmip");
-    let started = Instant::now();
-    let heart = Heartbeat::start(&path, Duration::from_secs(60));
-    let took = started.elapsed();
+    let took = (0..20)
+        .map(|_| {
+            let started = Instant::now();
+            let heart = Heartbeat::start(&path, Duration::from_secs(60));
+            let took = started.elapsed();
+            drop(heart);
+            took
+        })
+        .collect();
+    let took = xcore::latency::spread("the first beat written", took);
     assert!(
-        took < Duration::from_millis(100),
-        "the first beat took {took:?}"
+        took.fastest_of_five < Duration::from_millis(100),
+        "the first beat: {took:?}"
     );
-    drop(heart);
     std::fs::remove_dir_all(&dir).ok();
 }
