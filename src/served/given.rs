@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use toml::{Table, Value};
 
 use configure::placed::{self, Placed, Placement};
+use node::{Capability, NodeRole};
 
 use crate::carried::{Binding, Spot};
 use crate::subscribing::CLUSTER;
@@ -21,11 +22,13 @@ fn free() -> Result<u16, String> {
         .map_err(|error| format!("no port on loopback: {error}"))
 }
 
-/// Each Receive Location and Send Port the file designs placed over the
-/// run's nodes `declared` (`configure::placed`), a Receive Location a drop
-/// folder of its own, a Send Port a folder the rig reads.
+/// Each Receive Location, Send Port and Work Process the file designs
+/// placed over the run's nodes `declared` by what each declares
+/// (`configure::placed`), a Receive Location a drop folder of its own, a
+/// Send Port a folder the rig reads; work no node of the run satisfies
+/// refused, as `xmip-service --slice --bind` refuses it.
 pub(super) fn placed(
-    declared: &[(String, Vec<String>)],
+    declared: &[(String, Capability)],
     area: &Path,
 ) -> Result<Vec<Binding>, String> {
     Ok(placed::placements(CLUSTER, declared)?
@@ -34,6 +37,9 @@ pub(super) fn placed(
             let under = match placement.placed {
                 Placed::Receive => "drop",
                 Placed::Send => "out",
+                // Never made: the rig drops into and reads nothing of a
+                // Work Process (`crate::carried`).
+                Placed::Process => "process",
             };
             let folder = area.join(under).join(placement.folded());
             Binding {
@@ -54,7 +60,7 @@ pub(super) fn placed(
 /// operators, by that account and by its operator certificate ([`testers`]).
 pub(super) fn cluster_text(
     cluster: &str,
-    declared: &[(String, Vec<String>)],
+    declared: &[(String, Capability)],
     bindings: &[Binding],
 ) -> Result<String, String> {
     let placements: Vec<Placement> = bindings.iter().map(|one| one.placement.clone()).collect();
@@ -77,8 +83,8 @@ pub(super) fn cluster_text(
         .parse()
         .map_err(|error| format!("the cluster's file: {error}"))?;
     let mut serving: Vec<(String, String)> = Vec::new();
-    for (name, roles) in declared {
-        if roles.iter().any(|role| role == "storage") {
+    for (name, declares) in declared {
+        if declares.roles().contains(&NodeRole::Storage) {
             serving.push((name.clone(), format!("127.0.0.1:{}", free()?)));
         }
     }
@@ -100,9 +106,9 @@ pub(super) fn cluster_text(
     let tester = runtime::plane::local::running_as()?;
     let mut operators = vec![Value::String(tester.clone())];
     operators.extend(testers()?.into_iter().map(Value::String));
-    for (name, roles) in declared {
+    for (name, declares) in declared {
         let node = table(&mut file, &["nodes", name]);
-        node.insert("roles".to_string(), Value::String(roles.join(", ")));
+        node.insert("roles".to_string(), Value::String(declares.words()));
         table(&mut file, &["nodes", name, "service"])
             .insert("data".to_string(), Value::String("data".to_string()));
         let operate = table(&mut file, &["nodes", name, "operate"]);
@@ -223,7 +229,7 @@ fn authority_name(place: &Path) -> Result<String, String> {
             path.display()
         )
     })?;
-    provision::Parsed::first(&text)
+    tls::certificate::Certificate::first(&text)
         .and_then(|parsed| parsed.common_name())
         .map_err(|error| format!("{}: {error}", path.display()))?
         .ok_or_else(|| {
@@ -242,9 +248,9 @@ mod tests {
     fn two_runs_issue_their_nodes_under_the_one_essentials_authority() {
         // A node that keeps Xmip Storage and one that does not, as the
         // Essentials' own file declares them, and the test cluster's name.
-        let roles = configure::cluster::roles(CLUSTER).expect("the file's roles");
-        let storage = |node: &&(String, Vec<String>)| node.1.iter().any(|role| role == "storage");
-        let declared: Vec<(String, Vec<String>)> = [
+        let roles = configure::cluster::capabilities(CLUSTER).expect("the file's roles");
+        let storage = |node: &&(String, Capability)| node.1.roles().contains(&NodeRole::Storage);
+        let declared: Vec<(String, Capability)> = [
             roles.iter().find(storage),
             roles.iter().find(|node| !storage(node)),
         ]
@@ -290,13 +296,13 @@ mod tests {
         // runs started relays for the tester's web host, which runs as the
         // run does (ADR-0009, the second amendment of 2026-11-01).
         let asked = provision::operator::request("tester@example.org").expect("a request");
-        let der = provision::pem::decode(provision::operator::REQUEST_LABEL, &asked.request)
+        let der = codec::pem::decode(provision::operator::REQUEST_LABEL, &asked.request)
             .expect("the request")
             .remove(0);
         let chain = issuer
             .sign(&der, provision::Purpose::Operator, now - 60, now + 3600)
             .expect("signed");
-        let leaf = provision::pem::decode("CERTIFICATE", &chain)
+        let leaf = codec::pem::decode("CERTIFICATE", &chain)
             .expect("the chain")
             .remove(0);
         // And the web host's listener, which `Start-XmipOperationWeb` has the
@@ -313,7 +319,7 @@ mod tests {
         )
         .expect("the host's certificate");
         let host = std::fs::read_to_string(host.certificate).expect("read");
-        let host = provision::pem::decode("CERTIFICATE", &host)
+        let host = codec::pem::decode("CERTIFICATE", &host)
             .expect("the host's chain")
             .remove(0);
         let tester = runtime::plane::local::running_as().expect("the run's account");

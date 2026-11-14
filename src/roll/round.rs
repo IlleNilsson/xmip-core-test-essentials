@@ -52,8 +52,8 @@ impl<'a> Drawing<'a> {
 }
 
 /// What each node the run reads published now, merged into the snapshot,
-/// and what it drew of itself by its name, at a time
-/// (`real::published_into`).
+/// and what it drew of itself by its name, at a time: what the runtime's
+/// gatherer heard (`runtime::plane::gather::Gathered::merged`).
 pub type Reading<'a> = dyn FnMut(&mut Snapshot, i64) -> Vec<(String, Topology)> + 'a;
 
 /// What a round is assembled from.

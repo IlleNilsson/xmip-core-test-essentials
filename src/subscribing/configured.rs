@@ -9,7 +9,7 @@
 
 use std::path::{Path, PathBuf};
 
-use node::Stage;
+use node::{Capability, NodeRole, Scope, Stage};
 
 use configure::placed::{self, Placed};
 
@@ -20,17 +20,16 @@ use crate::roster::Roster;
 /// configuration with the run's names and the bindings that place every
 /// Application the file designs on the run's nodes (`configure::placed`) — each Receive Location
 /// on the first node that declared receive, each Send Port on the first
-/// that declared send — into `<shared>/configuration`, and say where it is.
+/// that declared send, each Work Process on every node serving process,
+/// as configure places it — into `<shared>/configuration`, and say where
+/// it is.
 pub(super) fn configured(
     node: &str,
     name: &str,
     roster: &Roster,
     shared: &Path,
 ) -> Result<PathBuf, String> {
-    let cluster = observe::Scope::new(node)
-        .segments()
-        .next()
-        .unwrap_or_default();
+    let cluster = Scope::new(node).segments().next().unwrap_or_default();
     let at = |stage: Stage| roster.with(stage).first().map(ToString::to_string);
     let receives = at(Stage::Receive).ok_or("no node declares receive")?;
     let sends = at(Stage::Send).ok_or("no node declares send")?;
@@ -45,15 +44,43 @@ pub(super) fn configured(
     let directory = shared.join("configuration");
     std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
     let (inbox, outbox) = (inbox(&receives, Stage::Process), inbox(&sends, Stage::Send));
-    let nodes = [
-        (receives, vec!["receiving".to_string()]),
-        (sends, vec!["sending".to_string()]),
-    ];
+    // The roster's nodes, each serving here what the simulated handoff
+    // gives it: receive on the first serving receive, send on the first
+    // serving send, and process on every node the one rule gives a Work
+    // Process (`xcluster::every`); where none serves process, `placements`
+    // refuses each Work Process in its own words.
+    let candidates: Vec<(String, Capability)> = roster
+        .names()
+        .into_iter()
+        .map(|one| (one.to_string(), roster.capability(one)))
+        .collect();
+    let processing: Vec<&str> = xcluster::every(Placed::Process.requirement(), &candidates)
+        .map(|on| on.into_iter().map(|(one, _)| one.as_str()).collect())
+        .unwrap_or_default();
+    let nodes: Vec<(String, Capability)> = candidates
+        .iter()
+        .map(|(one, _)| {
+            let serving: Vec<NodeRole> = [
+                (*one == receives).then_some(NodeRole::Receiving),
+                (*one == sends).then_some(NodeRole::Sending),
+                processing
+                    .contains(&one.as_str())
+                    .then_some(NodeRole::Processing),
+            ]
+            .into_iter()
+            .flatten()
+            .collect();
+            (one.clone(), Capability::of(&serving))
+        })
+        .filter(|(_, serving)| !serving.roles().is_empty())
+        .collect();
     let placements = placed::placements(CLUSTER, &nodes)?;
     let bound = placed::written(&placements, |placement| placed::Binding {
         address: match placement.placed {
             Placed::Receive => inbox.clone(),
             Placed::Send => outbox.clone(),
+            // Never asked: a Work Process is bound by its node alone.
+            Placed::Process => String::new(),
         },
         settings: Vec::new(),
         secret: None,

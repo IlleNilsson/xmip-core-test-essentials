@@ -48,12 +48,10 @@ pub fn roll_toml(
     snapshot: &Snapshot,
     topology: Option<Topology>,
     run: Option<Run>,
-    orders: &str,
 ) -> String {
     Publication::whole(&source(node), node, snapshot)
         .with_topology(topology)
         .with_run(run)
-        .with_orders(orders)
         .to_toml()
 }
 
@@ -114,7 +112,7 @@ mod tests {
         let mut schedule = Schedule::new(root.as_str(), &dir).over(crate::support::three(&dir));
         let snapshot = schedule.tick();
 
-        let text = roll_toml(&root, &snapshot, None, None, "");
+        let text = roll_toml(&root, &snapshot, None, None);
         let parsed: toml::Table = text.parse().expect("valid TOML");
 
         assert_eq!(parsed["node"].as_str(), Some(root.as_str()));
@@ -139,7 +137,7 @@ mod tests {
         let written = schedule.tick();
 
         let (read, hops) =
-            node_from_toml(&roll_toml(&root, &written, None, None, "")).expect("reads back");
+            node_from_toml(&roll_toml(&root, &written, None, None)).expect("reads back");
         assert!(hops.is_empty(), "a roll writes no handoffs");
 
         let before: Vec<_> = written.health(&root);

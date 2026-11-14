@@ -14,8 +14,8 @@
 //! reaches the Storage nodes over Xmip's mutual TLS, as on machines of
 //! their own.
 //!
-//! The rig reads what each publishes over its local endpoint, as it reads a
-//! real node's (`real::RealNode`), and drives them through their Receive
+//! The rig follows what each publishes over its local endpoint, as it
+//! follows a real node's (`real::gathered`), and drives them through their Receive
 //! Locations (`carried`). It stops them by ending their input, the stop a
 //! node a test started takes, and waits for each to drain.
 
@@ -26,6 +26,8 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
+
+use node::{Capability, NodeRole};
 
 pub use crate::carried::Binding;
 use crate::real::RealNode;
@@ -54,10 +56,11 @@ struct Started {
     child: Child,
 }
 
-/// The roles each node of the run declares, from the run's cluster file.
-fn roles() -> Result<Vec<(String, Vec<String>)>, String> {
+/// What each node of the run declares, from the run's cluster file: its
+/// roles and its online capability (`configure::cluster::capabilities`).
+fn roles() -> Result<Vec<(String, Capability)>, String> {
     let (_, text) = crate::environment::cluster_file()?;
-    configure::cluster::roles(&text)
+    configure::cluster::capabilities(&text)
 }
 
 /// Whether any of `names` declares the Storage role: only then can the
@@ -70,7 +73,7 @@ fn roles() -> Result<Vec<(String, Vec<String>)>, String> {
 pub fn stores(names: &[String]) -> Result<bool, String> {
     Ok(roles()?
         .iter()
-        .any(|node| names.contains(&node.0) && holding(node, &["storage"])))
+        .any(|node| names.contains(&node.0) && keeps_storage(node)))
 }
 
 impl Served {
@@ -89,25 +92,23 @@ impl Served {
         (base, service): (&Path, &Path),
     ) -> Result<(Self, Vec<RealNode>), String> {
         let area = base.join("served");
-        let declared: Vec<(String, Vec<String>)> = roles()?
+        let declared: Vec<(String, Capability)> = roles()?
             .into_iter()
             .filter(|(name, _)| names.contains(name))
             .collect();
         let placed = placed(&declared, &area)?;
         let text = cluster_text(cluster, &declared, &placed)?;
         let mut started = Vec::new();
-        let stores: Vec<&(String, Vec<String>)> = declared
+        let stores: Vec<&(String, Capability)> =
+            declared.iter().filter(|node| keeps_storage(node)).collect();
+        let rest: Vec<&(String, Capability)> = declared
             .iter()
-            .filter(|node| holding(node, &["storage"]))
-            .collect();
-        let rest: Vec<&(String, Vec<String>)> = declared
-            .iter()
-            .filter(|node| !holding(node, &["storage"]))
+            .filter(|node| !keeps_storage(node))
             .collect();
         for group in [stores, rest] {
             let mut waiting = Vec::new();
-            for (name, roles) in group {
-                let stores = roles.iter().any(|role| role == "storage");
+            for node in group {
+                let (name, stores) = (&node.0, keeps_storage(node));
                 let spawning = configured(&text, (cluster, name), &area)
                     .and_then(|configuration| spawned(service, &configuration, &area));
                 match spawning {
@@ -203,7 +204,7 @@ fn spawned(
         .arg("--configuration")
         .arg(configuration)
         .args(["--console", "--purpose", "test"])
-        .env(node::declaration::DIRECTORY_VARIABLE, area.join("process"))
+        .env(runtime::declared::DIRECTORY_VARIABLE, area.join("process"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
@@ -255,7 +256,7 @@ fn accepting(said: &Receiver<String>, scope: &str) -> Result<(), String> {
     }
 }
 
-/// Whether `node` declares any of the roles `any`.
-fn holding((_, roles): &(String, Vec<String>), any: &[&str]) -> bool {
-    any.iter().any(|role| roles.iter().any(|word| word == role))
+/// Whether `node` declares the Storage role, and so keeps Xmip Storage.
+fn keeps_storage((_, declares): &(String, Capability)) -> bool {
+    declares.roles().contains(&NodeRole::Storage)
 }

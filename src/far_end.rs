@@ -63,7 +63,12 @@ impl FarEnd {
     pub fn serve(real: &[RealNode], arrived: &Arrived) -> Result<Option<Self>, String> {
         let names: Vec<String> = real.iter().map(|node| node.name.clone()).collect();
         let nodes = placed::present(CLUSTER, &names)?;
-        let placements = placed::placements(CLUSTER, &nodes)?;
+        // The far end serves the Locations; a Work Process runs on its nodes
+        // and has no user here.
+        let placements: Vec<_> = placed::placements(CLUSTER, &nodes)?
+            .into_iter()
+            .filter(|placement| placement.placed != Placed::Process)
+            .collect();
         if placements.is_empty() {
             return Ok(None);
         }
@@ -78,7 +83,7 @@ impl FarEnd {
                 .set_password(&placed::far_end_secret(&placement), &password)?;
             enrolled.push((placement.folded(), password));
             let directory = match placement.placed {
-                Placed::Receive => Directory::default(),
+                Placed::Receive | Placed::Process => Directory::default(),
                 Placed::Send => Directory::default().telling(told(arrived, &placement.name)),
             };
             let shared: Shared = Arc::new(std::sync::Mutex::new(directory));

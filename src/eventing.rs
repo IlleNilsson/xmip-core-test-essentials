@@ -2,9 +2,9 @@
 //! Event subscriptions its hub holds (ADR-0065, amendment 2026-09-29).
 //!
 //! Every node subscribes one Party twice in its own process — declared
-//! here, by name, as [`operations`] — through the event crate's hub and
+//! here, by name, as [`operations`] — through the cluster's hub and
 //! nothing of its own: it hears every Event on the node and is called back
-//! ([`xevent::listener::Listener`]), and it hears the failures and is
+//! ([`xcluster::delivery::listener::Listener`]), and it hears the failures and is
 //! drained each round. A subscriber is the Party its proven caller resolves
 //! to, never one it names (ADR-0019, amendment 2026-11-11): the node's
 //! process runs as the run's account, which the operating system names,
@@ -16,12 +16,10 @@
 //! amendment 2026-11-11). Each round the
 //! node raises one Event per stage it serves whose standing changed — a
 //! failure when more of its pairs fail than the round before, a success
-//! when fewer — so a steady node is quiet and a stirring one is heard. An
-//! operator's order on one of them reaches it through [`Eventing::act`]
-//! (`operator_orders.rs` takes the orders), and each round it records what
-//! its hub holds in its snapshot, which the cluster and the roll publish as
-//! the node's Event subscriptions. They are real ones: an operator who
-//! pauses one sees its queue fill, and one who removes one sees it gone.
+//! when fewer — so a steady node is quiet and a stirring one is heard. Each
+//! round it records what its hub holds in its snapshot, which the cluster
+//! and the roll publish as the node's Event subscriptions. They are real
+//! ones: one paused in the hub is seen to fill, and one removed is seen gone.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -29,16 +27,16 @@ use std::time::Duration;
 
 use authorize_party::PartyPolicy;
 
-use node::{Capability, Stage};
-use observe::{Act, Health, Scope, Snapshot};
+use node::{Capability, Scope, Stage};
+use observe::{Health, Snapshot};
 use party::{Identity, Party, PartyKind};
 use runtime::parties::Parties;
 use xaudit::program_audit::ProgramAudit;
+use xcluster::delivery::hub::{EventSubscription, Hub};
+use xcluster::delivery::listener::Listener;
 use xcore::{PartyId, mechanism};
 use xevent::Event;
 use xevent::filter::Filter;
-use xevent::hub::{EventSubscription, Hub};
-use xevent::listener::Listener;
 use xevent::outcome::Outcome;
 
 use crate::process_audit;
@@ -118,20 +116,6 @@ impl Eventing {
         }
     }
 
-    /// Apply `act` to the Event subscription numbered `target` in this
-    /// node's hub, by `who`.
-    ///
-    /// # Errors
-    /// The hub's refusal, or a target that is no number, in words.
-    pub fn act(&self, target: &str, act: Act, who: &str) -> Result<String, String> {
-        let id = target
-            .parse()
-            .map_err(|_| format!("REFUSED: '{target}' numbers no Event subscription"))?;
-        Hub::process()
-            .act(id, act, who)
-            .map_err(|refused| refused.to_string())
-    }
-
     /// One round: raise what changed, drain the failures, and record what
     /// the hub holds in `snapshot`.
     pub fn round(&mut self, snapshot: &mut Snapshot) {
@@ -195,7 +179,7 @@ impl Eventing {
 mod tests {
     use super::*;
     use crate::support::scratch;
-    use observe::{HealthRecord, PauseState};
+    use observe::{Act, HealthRecord, PauseState};
 
     fn record(scope: &str, health: Health) -> HealthRecord {
         HealthRecord {
@@ -208,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    fn a_node_publishes_its_event_subscriptions_and_applies_an_act_on_one() {
+    fn a_node_publishes_its_event_subscriptions_as_its_hub_holds_them() {
         let shared = scratch("eventing");
         let cluster = crate::support::test_cluster();
         let receiving = &cluster.with_role("receiving").name;
@@ -238,9 +222,8 @@ mod tests {
             .expect("the failures");
         assert_eq!(failures.delivered, 1, "the failure was raised and drained");
 
-        eventing
-            .act(&failures.id.to_string(), Act::Pause, "ilian")
-            .expect("paused");
+        let hub = Hub::process();
+        hub.act(failures.id, Act::Pause, "ilian").expect("paused");
         let mut second = Snapshot::new();
         second.record_health(record(&format!("{node}/receive/tcp/json"), Health::Done));
         second.record_health(record(&format!("{node}/receive/tcp/xml"), Health::Done));
@@ -256,10 +239,7 @@ mod tests {
             "queued, not handed over"
         );
 
-        eventing
-            .act(&failures.id.to_string(), Act::Remove, "ilian")
-            .expect("removed");
-        assert!(eventing.act("seven", Act::Pause, "ilian").is_err());
+        hub.act(failures.id, Act::Remove, "ilian").expect("removed");
         let mut third = Snapshot::new();
         eventing.round(&mut third);
         assert!(

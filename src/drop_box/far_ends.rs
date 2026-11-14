@@ -25,7 +25,7 @@ use provision_self_signed::{SETTINGS, SelfSigned, TECHNOLOGY};
 use transport::concurrent::Concurrent;
 use transport::{Configured, Login, NodeLocation, Transport};
 use transport_file::FileTransport;
-use transport_ftp::{FtpTransport, Secured, Store};
+use transport_ftp::{FtpTransport, Store};
 use transport_sftp::SftpTransport;
 use transport_sftp::directory::Directory;
 use xcore::settings::Given;
@@ -186,10 +186,10 @@ fn on<T: Configured + Transport + Send + Sync + 'static>(
 }
 
 /// FTPS checked against the anchor at `anchor`, for the servers' name.
-fn trusted(anchor: &Path) -> Result<Secured, String> {
+fn trusted(anchor: &Path) -> Result<tls::ClientSettings, String> {
     let pem = std::fs::read(anchor).map_err(|error| error.to_string())?;
     let config = tls::trusting(&pem).map_err(|error| error.to_string())?;
-    Ok(Secured::trusting(Arc::new(config)).named(SERVER_NAME))
+    Ok(tls::ClientSettings::trusting(Arc::new(config)).named(SERVER_NAME))
 }
 
 /// A certificate for the servers' name from the estate's own self-signed

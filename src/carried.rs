@@ -105,6 +105,11 @@ impl Carried {
         let mut ports = BTreeMap::new();
         let mut drops = Vec::new();
         for binding in bindings {
+            // A Work Process runs on its nodes; the rig drops into and reads
+            // nothing of it.
+            if binding.placement.placed == Placed::Process {
+                continue;
+            }
             if let Spot::Folder(folder) = &binding.spot {
                 std::fs::create_dir_all(folder)
                     .map_err(|error| format!("{}: {error}", folder.display()))?;
@@ -129,6 +134,7 @@ impl Carried {
                         .to_vec(),
                     next: 0,
                 }),
+                Placed::Process => {}
             }
         }
         Ok(Self {

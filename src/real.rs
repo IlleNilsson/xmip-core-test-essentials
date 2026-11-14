@@ -16,18 +16,19 @@
 //! answer as a node of that cluster.
 //!
 //! The rig never spawns, configures or stops a real node: an orchestrator
-//! owns a node's life (ADR-0052, ruling 8). It reads what the node
-//! publishes, each round, and the run says per node which it is.
+//! owns a node's life (ADR-0052, ruling 8). It follows what the node
+//! publishes through the runtime's one gatherer (`runtime::plane::gather`,
+//! [`gathered`]), and the run says per node which it is.
 
 use std::net::ToSocketAddrs;
 use std::path::Path;
 use std::sync::Arc;
 
 use node::Capability;
-use observe::{Health, HealthRecord, Order, Publication, Snapshot, Topology};
+use observe::Publication;
+use runtime::plane::gather::{Follow, Gatherer, Reach};
 use runtime::plane::{Outcome, Remote};
-
-use crate::roll::orders::Act;
+use xcluster::{ClusterError, Member, Membership};
 
 use crate::environment;
 use crate::roster::Roster;
@@ -66,25 +67,83 @@ pub fn sorted(cluster: &str, roster: Roster) -> Result<Sorted, String> {
     })
 }
 
-/// What every real node publishes now, read over its operate listener into
-/// `snapshot` beneath `root`'s scope of it, as [`RealNode::published_into`];
-/// and what each drew of itself, by its name, for the roll to merge into its
-/// drawing of the cluster (`observe::Topology::merge`; ADR-0052, amendment
-/// 2026-11-11).
-#[must_use]
-pub fn published_into(
-    real: &[RealNode],
-    root: &str,
-    snapshot: &mut Snapshot,
-    now: i64,
-) -> Vec<(String, Topology)> {
-    real.iter()
-        .filter_map(|node| {
-            let scope = format!("{root}/node/{}", node.name);
-            let drawn = node.published_into(&scope, snapshot, now)?;
-            Some((node.name.clone(), drawn))
-        })
-        .collect()
+/// Every node of `real` the run reads, gathered beneath `root` by the
+/// runtime's one gatherer (`runtime::plane::gather`; ADR-0028 and ADR-0052,
+/// amendments 2026-11-13): the run's roster as the cluster's membership
+/// (`xcluster::Membership`), each node related and drawn by the roles it
+/// declared and its place in `[storage] nodes` as `roster` says them, and
+/// followed over its operate listener through the surface it was found
+/// through, heard once before this returns. Each round the roll merges what
+/// was heard into its own snapshot, each node's `<node>/reached` said
+/// *real, at* where it answered, and what each drew of itself into its
+/// drawing of the cluster (`Gathered::merged`).
+///
+/// # Errors
+///
+/// REFUSED, where the membership could not be read, which a roster always
+/// is.
+pub fn gathered(real: &[RealNode], roster: &Roster, root: &str) -> Result<Gatherer, String> {
+    let membership = Read { real, roster, root };
+    Gatherer::start(root, None, &membership, &|member| membership.reach(member))
+        .map_err(|error| format!("REFUSED: the nodes the run reads: {error}"))
+}
+
+/// The nodes the run reads, as the cluster's membership.
+struct Read<'a> {
+    real: &'a [RealNode],
+    roster: &'a Roster,
+    root: &'a str,
+}
+
+impl Membership for Read<'_> {
+    /// Each node the run reads, running, at the scope it declared itself
+    /// at, operated where the roll follows it; no sync listener the roll
+    /// knows.
+    fn members(&self) -> Result<Vec<Member>, ClusterError> {
+        let listed = self.roster.members();
+        let members = self.real.iter().map(|node| {
+            let storage_place = listed
+                .iter()
+                .find(|one| one.node.eq_ignore_ascii_case(&node.name))
+                .and_then(|one| one.storage_place)
+                .and_then(|place| usize::try_from(place).ok());
+            Member {
+                node: self.scope(node),
+                address: None,
+                capability: node.capability.clone(),
+                operate: Some(node.remote.address().to_string()),
+                storage_place,
+                stopped: None,
+            }
+        });
+        Ok(members.collect())
+    }
+}
+
+impl Read<'_> {
+    /// The scope `node` declared itself at.
+    fn scope(&self, node: &RealNode) -> String {
+        format!("{}/node/{}", self.root, node.name)
+    }
+
+    /// How the roll reaches `member`: through the surface it found the node
+    /// through, said *real, at* where it answered.
+    fn reach(&self, member: &Member) -> Reach {
+        match self
+            .real
+            .iter()
+            .find(|node| self.scope(node) == member.node)
+        {
+            Some(node) => Reach {
+                at: format!("real, at {}", node.address),
+                through: Ok(Arc::clone(&node.remote) as Arc<dyn Follow>),
+            },
+            None => Reach {
+                at: member.node.clone(),
+                through: Err("the run reads no such node".to_string()),
+            },
+        }
+    }
 }
 
 /// A node on a machine of its own, as it answered.
@@ -115,30 +174,6 @@ impl RealNode {
         })
     }
 
-    /// An operator's order carried to this node over its operate listener,
-    /// as the identity the rig proves there — the run's tester, whom every
-    /// node lists among its operators — and audited by the node as any act
-    /// (ADR-0028, amendment 2026-11-11).
-    #[must_use]
-    pub fn acting(&self) -> Act {
-        let (remote, name) = (Arc::clone(&self.remote), self.name.clone());
-        Arc::new(move |order: &Order| {
-            let refused = |why: &str| {
-                format!(
-                    "REFUSED: {} '{}' on {name}: {why}",
-                    order.act.word(),
-                    order.target
-                )
-            };
-            let thing = (order.noun.word(), order.target.as_str(), order.act.word());
-            match remote.act(0, &order.node, thing) {
-                Ok((Outcome::Taken, _)) => Ok(()),
-                Ok((_, said)) => Err(refused(&said)),
-                Err(why) => Err(refused(&why)),
-            }
-        })
-    }
-
     /// The password secret `name` set to `value` on this node, through its
     /// operate listener as the run's operator certificate proves the rig
     /// (`Remote::set_secret`): the one place the value is kept, read by
@@ -157,43 +192,6 @@ impl RealNode {
             Ok((_, said)) => Err(refused(&said)),
             Err(why) => Err(refused(&why)),
         }
-    }
-
-    /// What the node publishes now, read over its operate listener, into
-    /// `snapshot`, beneath its own scope, and what it drew of itself; where
-    /// it does not answer, that is recorded at `<node>/reached`, with why,
-    /// and nothing else of it.
-    pub fn published_into(
-        &self,
-        scope: &str,
-        snapshot: &mut Snapshot,
-        now: i64,
-    ) -> Option<Topology> {
-        let read = self
-            .remote
-            .publication()
-            .and_then(|(_, text)| Publication::read(&text));
-        let reached = format!("{scope}/reached");
-        let (health, evidence, drawn) = match read {
-            Ok(publication) => {
-                snapshot.merge(&publication.snapshot());
-                let at = format!("real, at {}", self.address);
-                (Health::Fine, at, publication.topology)
-            }
-            Err(problem) => (
-                Health::Exhausted,
-                format!("real, at {}, did not answer: {problem}", self.address),
-                None,
-            ),
-        };
-        snapshot.record_health(HealthRecord {
-            scope: reached,
-            health,
-            severity: 0,
-            evidence,
-            observed_unix_nanos: now,
-        });
-        drawn
     }
 }
 

@@ -21,7 +21,9 @@
 //! node. Every node's latest file is read and merged — scopes are disjoint per
 //! node — and the cluster adds what no node can say about itself: a health
 //! record per node (alive, exited with its code, or hung) and the rollup at
-//! `xmip:///<cluster>/node`, worst of all. A node that stops beating is hung:
+//! `xmip:///<cluster>/node`, worst of all — observe's one rule
+//! (`observe::rollup::nodes`), which the runtime's gatherer calls too
+//! (`runtime::plane::gather`). A node that stops beating is hung:
 //! it is killed and restarted, and the restart is recorded as a fault — a
 //! yellow that stays for the cluster's life — never silently. Liveness is
 //! beats, never rounds (`liveness.rs`, the owner 2026-09-26): a node beats
@@ -40,7 +42,6 @@ mod member;
 mod orders;
 #[cfg(feature = "test-support")]
 mod quick;
-mod rollup;
 mod spawned;
 
 use std::io;
@@ -56,11 +57,11 @@ pub use idle::IdlePass;
 pub(crate) use liveness::Liveness;
 use member::Member;
 pub use orders::Orders;
-use rollup::rollup;
 pub use spawned::Spawned;
 
 use crate::handoff::Hop;
 use crate::stress::Stress;
+use crate::support::cluster_root;
 use observe::now_unix_nanos;
 
 /// How long a tick waits for every live node to publish something new before
@@ -226,7 +227,8 @@ impl Cluster {
                 view.merge(&node.published);
                 view.record_health(record);
             }
-            view.record_health(rollup(&view, self.nodes.len(), now));
+            let count = self.nodes.len();
+            view.record_health(observe::rollup::nodes(&view, &cluster_root(), count, now));
             self.view = view;
             self.said = said;
         }

@@ -25,7 +25,7 @@ fn drawn(text: &str) -> Topology {
     let roster = Roster::of_cluster(text).expect("the cluster file reads");
     let spread = Parties::configured().spread(&["file"]);
     let topology = cluster_topology(&Snapshot::new(), &roster, false, &[], (&spread, &[]), 9);
-    let written = roll_toml(&cluster_root(), &Snapshot::new(), Some(topology), None, "");
+    let written = roll_toml(&cluster_root(), &Snapshot::new(), Some(topology), None);
     Publication::read(&written)
         .expect("reads back")
         .topology
@@ -85,7 +85,7 @@ fn a_renamed_cluster_file_draws_the_same_relations_and_stands_each_node_the_same
     let declaring = |role: &str| -> Vec<String> {
         declared
             .iter()
-            .filter(|(_, roles)| roles.iter().any(|one| one == role))
+            .filter(|(_, roles)| roles.iter().any(|one| one.name() == role))
             .map(|(name, _)| name.clone())
             .collect()
     };

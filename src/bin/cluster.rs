@@ -121,7 +121,6 @@ fn main() -> ExitCode {
     audit.locate(&root);
     let _declared = ::node::Declaration::new(called, &root, ::node::Purpose::Test)
         .and_then(|declaration| process_audit::declared(&audit, declaration))
-        .and_then(|declaration| declaration.declare().map_err(|error| error.to_string()))
         .map_err(|error| {
             let problem = format!("cluster {root}: could not declare itself: {error}");
             process_audit::fail(&audit, "declare", &problem);

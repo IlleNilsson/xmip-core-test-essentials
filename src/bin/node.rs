@@ -64,9 +64,9 @@
 //! `subscribing.rs`): a node whose roles serve process binds the Essentials'
 //! `RoundTrip` Application as a real node binds one, routes what its process
 //! stage hands on through its Subscriptions, and publishes them with its
-//! snapshot. It takes the orders an operator left for it under
-//! `<shared>/orders` (`operator_orders.rs`): pause, resume or remove an Event
-//! subscription; pause or resume a Subscription.
+//! snapshot. It keeps no operate listener, so no operator acts on it: an
+//! act is asked at a node's door and reaches its node through Xmip Storage
+//! (ADR-0014, amendment 2026-11-13).
 //!
 //! Each round it publishes what it declared at `<node>/capability`, beside the
 //! `switch` record, so a surface reads a node's capabilities from the snapshot
@@ -88,7 +88,6 @@ use observe::publication::write_atomic;
 use xaudit::program_audit::ProgramAudit;
 use xmip_core_test_essentials::eventing::Eventing;
 use xmip_core_test_essentials::node_arguments::{Arguments, USAGE, parse};
-use xmip_core_test_essentials::operator_orders;
 use xmip_core_test_essentials::scenario::{DAILY_BACKLOG, EXCLUSIVE_CLAIM, ROUND_TRIP, drives};
 use xmip_core_test_essentials::subscribing::Subscribing;
 use xmip_core_test_essentials::{
@@ -166,7 +165,6 @@ fn main() -> ExitCode {
     // parses this command line again.
     let _declared = declaration(called, &node, &arguments)
         .and_then(|declaration| process_audit::declared(&audit, declaration))
-        .and_then(|declaration| declaration.declare().map_err(|error| error.to_string()))
         .map_err(|error| {
             let problem = format!("node {}: could not declare itself: {error}", arguments.name);
             process_audit::fail(&audit, "declare", &problem);
@@ -209,7 +207,6 @@ fn main() -> ExitCode {
             snapshot.merge(&daily_backlog.tick());
         }
         record_capability(&mut snapshot, &node, &arguments);
-        operator_orders::take(shared, &node, &eventing, subscribing.as_deref(), &audit);
         eventing.round(&mut snapshot);
         if let Some(subscribing) = &subscribing {
             subscribing.round(&mut snapshot);

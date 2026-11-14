@@ -3,10 +3,11 @@
 //!
 //! Every one of these has a server at the far end in production — a
 //! database, a bucket, a container. The build box has none, so each adapter
-//! binds the sibling transport's own one-client `Session` on loopback for
-//! the length of one filing — a server's worth of protocol, one credential,
-//! one store in memory — serves exactly what an archive and a restore need,
-//! and joins it. The session runs on its own thread and the filing on this
+//! binds its technology's own one-client `Session` — `PostgreSQL`'s from
+//! `xmip-core-library-postgresql`, each object store's from its sibling
+//! transport — on loopback for the length of one filing — a server's worth
+//! of protocol, one credential, one store in memory — serves exactly what
+//! an archive and a restore need, and joins it. The session runs on its own thread and the filing on this
 //! one, so a far end that hangs is judged within [`TIMEOUT`] rather than
 //! waited on: the same rule `Loopback::round` keeps for the transports.
 
@@ -19,11 +20,11 @@ use archive_azure_blob::AzureBlobArchive;
 use archive_gcs::GcsArchive;
 use archive_postgresql::PostgreSql;
 use archive_s3::S3Archive;
+use library_postgresql::{Answer, Session};
 use sql::Delimiter;
 use transport::error::protocol_error;
 use transport::loopback::{both_ends, poke};
 use transport::socket;
-use transport_postgresql::{Answer, Session};
 
 use crate::cabinet::{Cabinet, Filed, file_through};
 use crate::exchange::TIMEOUT;
@@ -104,7 +105,11 @@ impl PostgresqlCabinet {
     fn serve(listener: &TcpListener) -> transport::Result<()> {
         let held: Arc<Mutex<Vec<Option<String>>>> = Arc::default();
         let keep = Arc::clone(&held);
-        let mut inserting = Session::accept(listener, None, Some(TIMEOUT))?.answering(move |sql| {
+        let accept = || -> transport::Result<Session> {
+            let (stream, _) = socket::accept_tcp(listener, Some(TIMEOUT))?;
+            Ok(Session::accept(stream, None)?)
+        };
+        let mut inserting = accept()?.answering(move |sql| {
             if !sql.starts_with("INSERT") {
                 return None;
             }
@@ -124,8 +129,8 @@ impl PostgresqlCabinet {
             .clone();
         let cells: Vec<Option<&str>> = row.iter().map(Option::as_deref).collect();
         let rows: [&[Option<&str>]; 1] = [&cells];
-        let mut selecting = Session::accept(listener, None, Some(TIMEOUT))?
-            .with_table(&["data_type", "identifier", "bytes", "metadata"], &rows);
+        let mut selecting =
+            accept()?.with_table(&["data_type", "identifier", "bytes", "metadata"], &rows);
         while selecting.next_event()?.is_some() {}
         Ok(())
     }

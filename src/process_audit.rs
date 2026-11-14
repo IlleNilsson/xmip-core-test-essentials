@@ -13,22 +13,27 @@
 use std::collections::BTreeMap;
 
 use node::Declaration;
+use runtime::declared::{Declared, declare};
 use xaudit::program_audit::ProgramAudit;
 use xcore::{ExecutionPhase, Severity};
 
 use crate::environment;
 
-/// What the process declares of itself (ADR-0053 clause 3): `declaration`,
-/// saying `hidden = "true"` beside it where the run declared itself hidden
+/// The process declared (ADR-0053 clause 3): `declaration`, saying
+/// `hidden = "true"` beside it where the run declared itself hidden
 /// ([`environment::hidden`]) — and then every record `audit` makes from
-/// here says so too (ADR-0028, amendment 2026-09-30). The roll, the cluster
-/// and every node declare through this, so the three say it the same way.
+/// here says so too (ADR-0028, amendment 2026-09-30) — written where the
+/// node says, by the runtime's one writer, and standing while what this
+/// answers is held. The roll, the cluster and every node declare through
+/// this, so the three say it the same way.
 ///
 /// # Errors
 ///
-/// When the declaration cannot say it, as [`Declaration::with`] refuses.
-pub fn declared(audit: &ProgramAudit, declaration: Declaration) -> Result<Declaration, String> {
-    declared_as(audit, declaration, environment::hidden())
+/// When the declaration cannot say it, as [`Declaration::with`] refuses, or
+/// its file could not be written.
+pub fn declared(audit: &ProgramAudit, declaration: Declaration) -> Result<Declared, String> {
+    let declaration = declared_as(audit, declaration, environment::hidden())?;
+    declare(&declaration).map_err(|error| error.to_string())
 }
 
 /// [`declared`], told whether the run is hidden rather than reading it.

@@ -50,7 +50,7 @@ node = { package = "xmip-core-node", git = "https://github.com/IlleNilsson/xmip-
 xaudit = { package = "xmip-core-audit", git = "https://github.com/IlleNilsson/xmip-core-audit", branch = "main" }
 observe ={ package = "xmip-core-observe", git = "https://github.com/IlleNilsson/xmip-core-observe", branch = "main" }
 transport = { package = "xmip-core-transport", git = "https://github.com/IlleNilsson/xmip-core-transport", branch = "main" }
-# The Events a node raises and the Event subscriptions its hub holds
+# The Events a node raises and the filters its subscriptions ask by
 # (ADR-0065, amendment 2026-09-29).
 xevent = { package = "xmip-core-event", git = "https://github.com/IlleNilsson/xmip-core-event", branch = "main" }
 # The Parties a node's subscriptions are declared as, by name.
@@ -60,6 +60,11 @@ party = { package = "xmip-core-party", git = "https://github.com/IlleNilsson/xmi
 # route's one publish, paused and resumed through the runtime's pickup
 # (ADR-0013, amendment 2026-09-30).
 runtime = { package = "xmip-core-runtime", git = "https://github.com/IlleNilsson/xmip-core-runtime", branch = "main" }
+# The run's roster as the cluster's membership, which the runtime's one
+# gatherer follows the nodes it reads by (`real.rs`; ADR-0028, amendment
+# 2026-11-13); and its `delivery`, the hub each node's subscriptions are
+# held by (`eventing.rs`; ADR-0065, amendment 2026-11-13).
+xcluster = { package = "xmip-core-cluster", git = "https://github.com/IlleNilsson/xmip-core-cluster", branch = "main", default-features = false, features = ["delivery"] }
 configure = { package = "xmip-core-configure", git = "https://github.com/IlleNilsson/xmip-core-configure", branch = "main" }
 route = { package = "xmip-core-route", git = "https://github.com/IlleNilsson/xmip-core-route", branch = "main" }
 # What the Parties' documents are routed by, read as a node reads it: the
@@ -195,6 +200,8 @@ codec = { package = "xmip-core-library-codec", git = "https://github.com/IlleNil
 sql = { package = "xmip-core-library-sql", git = "https://github.com/IlleNilsson/xmip-core-library-sql", branch = "main" }
 # The MariaDB far end the archive cabinet serves its target from.
 library_mariadb = { package = "xmip-core-library-mariadb", git = "https://github.com/IlleNilsson/xmip-core-library-mariadb", branch = "main" }
+# The PostgreSQL far end the remote cabinet serves its archive target from.
+library_postgresql = { package = "xmip-core-library-postgresql", git = "https://github.com/IlleNilsson/xmip-core-library-postgresql", branch = "main" }
 
 # The identity axis: a Receive Location identifies, authenticates and authorizes;
 # a Send Location presents identity (ADR-0019, ADR-0033). The essentials drives

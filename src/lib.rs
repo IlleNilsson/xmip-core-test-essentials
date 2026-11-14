@@ -77,7 +77,6 @@ pub mod ledger_stream;
 pub mod login;
 pub mod low_latency;
 pub mod node_arguments;
-pub mod operator_orders;
 pub mod parties;
 pub mod process_audit;
 pub mod publication;

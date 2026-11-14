@@ -87,13 +87,7 @@ impl Roster {
     pub fn of_cluster(cluster: &str) -> Result<Self, String> {
         let entries: Vec<String> = configure::cluster::roles(cluster)?
             .into_iter()
-            .map(|(name, roles)| {
-                if roles.is_empty() {
-                    name
-                } else {
-                    format!("{name}={}", roles.join("+"))
-                }
-            })
+            .map(|(name, roles)| Capability::of(&roles).entry(&name))
             .collect();
         Ok(Self {
             places: configure::cluster::storage_places(cluster)?,

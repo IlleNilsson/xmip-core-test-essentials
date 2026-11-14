@@ -158,10 +158,15 @@ operator certificate `-Certificate` names (`XMIP_ESSENTIALS_CERTIFICATE`:
 `operator.pem`, `operator.key`, `anchors.pem`), as that node of this cluster
 saying what it can do; it is then **real**, runs by the roles it declared,
 and is never spawned, configured or stopped. Anything else is REFUSED by
-name and nothing spawns. The roll reads each real node's publication every
-round into the run's snapshot, and `<node>/reached` says it answered or why
-not; `[run] real` names them, and the first lines and the board say where
-each answered.
+name and nothing spawns. The roll follows each real node's publication
+through the runtime's one gatherer (`runtime::plane::gather`, over the
+roll's roster as the cluster's membership, `xcluster::Membership`), told as it advances and never asking
+again, and merges what was heard into the run's snapshot every round;
+`<node>/reached`, the gatherer's rule, says it answered or why not; `[run]
+real` names them, and the first lines and the board say where each
+answered. The rollup at `<cluster>/node` the cluster process adds over its
+simulated nodes is observe's one rule (`observe::rollup::nodes`), which the
+gatherer calls too.
 
 Every other node is **started**, a process of the assembled `xmip-service`,
 where the run was given one — `Start-XmipTest` builds it as the
@@ -174,7 +179,11 @@ across runs in .local-work/essentials/authority (ADR-0028, amendment
 2026-10-27), each plane on loopback — the Storage nodes' names in
 `[storage] nodes` resolved to the addresses they serve at — and the
 bindings that place the Applications on them, file Locations over the
-run's folders, placed by configure's one placement (`configure::placed`). DS1 and DS2 keep Xmip Storage, the primary
+run's folders, placed by configure's one placement (`configure::placed`)
+by the stage each serves — a Work Process on every node serving its
+stage — work no node of the run satisfies refused in words, as
+`xmip-service --slice --bind` refuses it (ADR-0056, amendment
+2026-11-13). DS1 and DS2 keep Xmip Storage, the primary
 and its standby; every other node reaches them over Xmip's mutual TLS. The
 roll reads each at its local endpoint, `xmip-<cluster>-<node>`, as a real
 node, and **drives them** (`src/carried.rs`): the rig is the Parties and
@@ -292,7 +301,8 @@ one emulated node that runs its part of the tests over a directory the whole
 cluster shares and publishes its own snapshot under
 `xmip:///<cluster>/node/<name>`; the cluster spawns one per name, or the level's
 count of them, merges their snapshots each round, adds the rollup the surface
-owes at `xmip:///<cluster>/node` (ADR-0027 decision 8), and kills and restarts a
+owes at `xmip:///<cluster>/node` (ADR-0027 decision 8; observe's one rule,
+`observe::rollup::nodes`, since 2026-11-13), and kills and restarts a
 node that stops beating — a recorded yellow, never silent. Liveness is beats,
 not rounds (the owner, 2026-09-26: *if something takes more than a
 millisecond, apart from load, something is wrong*; ADR-0052's amendment of
@@ -346,8 +356,7 @@ exactly as a node publishes its own.
 Each program in `src/bin` keeps its `main`, and its parts are the library's:
 the cluster's in `cluster.rs`, the roll's in `roll.rs` (the run's nodes, as
 it sorts them, in `roll/nodes.rs`; each round, assembled, in
-`roll/round.rs`; the orders carried to the nodes it reads in
-`roll/orders.rs`), and a node's command line in
+`roll/round.rs`), and a node's command line in
 `node_arguments.rs`. The style gate reads `src/bin` as it reads the rest
 since 2026-11-11; until then it skipped every directory called `bin` as
 .NET's output, and the roll and the node had grown past 400 lines unread.
@@ -401,7 +410,7 @@ convenient; only a name no file can carry is REFUSED before anything spawns.
 ### Every node hears itself, 2026-09-29
 
 Every node subscribes one Party twice in its own process, through
-`xmip-core-event`'s hub and nothing of its own (`src/eventing.rs`; ADR-0065,
+`xmip-core-cluster`'s hub (`delivery`) and nothing of its own (`src/eventing.rs`; ADR-0065,
 amendment 2026-09-29). Being in the Essentials' process admits nobody: the
 Essentials, the program hosting the hub, hands it the policy that allows
 that Party — the authorize capability's party technology, `PartyPolicy`
@@ -416,20 +425,16 @@ failures and is drained each round. A node
 raises an Event for each stage it serves whose failing pairs changed since
 the round before, so a steady node is quiet. It records what its hub holds in
 its snapshot, and the members of the cluster it does not hear, the cluster and the roll merge the Event subscriptions as they
-merge health, and the roll's snapshot says where the nodes take orders —
-`<shared>/orders`, beneath the directory the cluster shares. A surface over
-that snapshot leaves a pause, resume or remove there; the node that holds the
-Event subscription takes it at its next round (`src/operator_orders.rs`),
-applies it to its hub and publishes what came of it. A node started as
-`xmip-service`, or on a machine of its own, takes orders only over its
-operate listener: the roll watches each such node's place beneath
-`<shared>/orders` and carries an order left there to the node the moment it
-is left, as the run's tester (`src/roll/orders.rs`; ADR-0028, amendment
-2026-11-11). Every table of a snapshot — health, counts, Subscriptions,
-Event subscriptions, unheard members, the Dead Message Queue and the failed
-Messages — reaches the roll's through observe's one merge
-(`Snapshot::merge`), so a Replay, Retry or Dismiss is offered on what the
-nodes really hold.
+merge health. The roll's snapshot is read and never acted on: an operator
+acts on a node the run reads — started as `xmip-service`, or on a machine
+of its own — at its door, over its operate listener, and the act reaches
+its node through Xmip Storage (ADR-0014, amendment 2026-11-13); a
+simulated node keeps no operate listener and takes no act. Every table of
+a snapshot — health, counts,
+Subscriptions, Event subscriptions, unheard members, the Dead Message
+Queue and the failed Messages — reaches the roll's through observe's one
+merge (`Snapshot::merge`), so what a surface shows is what the nodes
+really hold.
 
 ### A node that processes routes by real Subscriptions, 2026-09-30
 
@@ -462,10 +467,9 @@ paused one holds it in the node's runtime store — persist over RocksDB under
 `<shared>/store/<node>`, sealed under a key-encryption key of the machine's
 key store in `<shared>/keys/<node>` — so it is counted as held, nothing is
 lost, and a restarted node is still paused. A resume hands on what was held,
-oldest first. The node publishes its Subscriptions with its snapshot, and an
-operator pauses and resumes them through an order left under
-`<shared>/orders`; they are added and removed in the Application's section
-of `configuration/cluster.xmip`.
+oldest first. The node publishes its Subscriptions with its snapshot; they
+are added and removed in the Application's section of
+`configuration/cluster.xmip`.
 
 ### Every process audits, 2026-09-25
 
@@ -757,8 +761,8 @@ device-local and ignored by git.
 
 ## The demo readiness check, 2026-11-10
 
-The owner's demo is on 2026-12-18; a demo branch is cut on his word and must
-be workable by 2026-12-16. `Core.Demo` proves a tree is (ADR-0028, amendment
+The owner's demo is on 2026-12-18 and runs from `main`. `Core.Demo` proves
+a tree is demo-ready (ADR-0028, amendment
 2026-11-10). It is a suite of Xmip's own, started, observed and stopped as
 the Essentials is:
 

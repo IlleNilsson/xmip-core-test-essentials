@@ -69,7 +69,8 @@
 //! `XMIP_ESSENTIALS_NAMED`, and the cluster's, are resolved, and one that
 //! answers as that node of this cluster over its operate listener, asked
 //! with the operator certificate `XMIP_ESSENTIALS_CERTIFICATE` names, is
-//! real — never spawned, configured or stopped, its publication read each
+//! real — never spawned, configured or stopped, its publication followed
+//! by the runtime's one gatherer (`runtime::plane::gather`) and merged each
 //! round; one that resolves and does not is REFUSED by name. The cluster
 //! process is given only the simulated nodes, and `[run] real` and the
 //! first lines say which are which (`real.rs`).
@@ -107,10 +108,8 @@ use xmip_core_test_essentials::cluster::Orders;
 use xmip_core_test_essentials::drop_box::Dropping;
 use xmip_core_test_essentials::environment::{self, max_seconds, time_factor};
 use xmip_core_test_essentials::in_process::InProcess;
-use xmip_core_test_essentials::operator_orders;
 use xmip_core_test_essentials::publication::Publication;
 use xmip_core_test_essentials::real;
-use xmip_core_test_essentials::roll::orders::Carrying;
 use xmip_core_test_essentials::roll::round::{Drawing, Rolling, assembled, scenarios};
 use xmip_core_test_essentials::roll::{
     Nodes, Ran, activity, announce, declared, leave, nodes, reading, relayed, say_started, shared,
@@ -176,17 +175,10 @@ fn main() {
     let mut history = History::with_capacity(3600);
 
     let limit: Option<u64> = std::env::args().nth(1).and_then(|arg| arg.parse().ok());
-    // The nodes take an operator's orders under the directory they share,
-    // and every snapshot says where (ADR-0065, amendment 2026-09-29; ADR-0013,
-    // amendment 2026-09-30).
-    let orders = operator_orders::orders(&shared(&base));
-    let publication = Publication::of(&cluster, run.clone(), audit.clone()).taking_orders(&orders);
-    // A node the run reads takes its orders over its operate listener: each
-    // carried to it as it is left (`roll/orders.rs`).
-    let _carrying = or_refuse(
-        &audit,
-        Carrying::reaching(&orders, root, &real_nodes, &audit),
-    );
+    // The roll's snapshot is read and never acted on: an operator acts on a
+    // node the run reads at its door, over its operate listener, and the act
+    // reaches its node through Xmip Storage (ADR-0014, amendment 2026-11-13).
+    let publication = Publication::of(&cluster, run.clone(), audit.clone());
     say_started(&audit, (&run, &spread), limit, &publication.snapshot);
 
     // One cluster per roll (ADR-0028), and since 2026-09-19 a process of its
@@ -210,9 +202,9 @@ fn main() {
     let mut window = Window::new();
     let idle = Activity::with_capacity(1);
     // What the real nodes and those started as xmip-service published, and
-    // what each drew of itself.
-    let mut reading =
-        |snapshot: &mut Snapshot, now| real::published_into(&real_nodes, root, snapshot, now);
+    // what each drew of itself, followed by the runtime's one gatherer.
+    let gatherer = or_refuse(&audit, real::gathered(&real_nodes, &roster, root));
+    let mut reading = |snapshot: &mut Snapshot, now| gatherer.gathered().merged(snapshot, now);
     let drawing = Drawing::of(&roster, relayed, &spread, &real_names);
     loop {
         round += 1;

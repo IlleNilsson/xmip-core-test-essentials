@@ -23,7 +23,8 @@ pub enum Spot {
     FarEnd(Shared),
 }
 
-/// One Receive Location or Send Port placed, and its spot.
+/// One Receive Location, Send Port or Work Process placed, and its spot: a
+/// Work Process's, which the rig never makes or reads, its node's alone.
 #[derive(Clone)]
 pub struct Binding {
     pub placement: Placement,

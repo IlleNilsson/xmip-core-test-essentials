@@ -4,7 +4,6 @@
 //! is the cluster process's.
 
 mod nodes;
-pub mod orders;
 pub mod round;
 
 use std::path::{Path, PathBuf};
@@ -124,7 +123,6 @@ pub fn declared(audit: &ProgramAudit, called: String, root: &str) -> impl Sized 
     audit.locate(root);
     ::node::Declaration::new(called, root, ::node::Purpose::Test)
         .and_then(|declaration| process_audit::declared(audit, declaration))
-        .and_then(|declaration| declaration.declare().map_err(|error| error.to_string()))
         .map_err(|error| {
             let problem = format!("roll: could not declare itself: {error}");
             process_audit::fail(audit, "declare", &problem);
