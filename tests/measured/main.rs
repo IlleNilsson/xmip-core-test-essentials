@@ -58,10 +58,13 @@ fn a_pass_over_idle_nodes_costs_each_under_a_millisecond() {
         pass.parsed_once,
         "an idle node's publication is not parsed again"
     );
+    // Each pass timed, the fastest of five (`xcore::latency::spread`): a
+    // pass reads files and waits on no wake, so no plain wake is measured
+    // beside it. Until 2026-11-15 the hundred passes were timed together.
+    let per_node = xcore::latency::spread("a pass, per idle node", pass.per_node);
     assert!(
-        pass.per_node < Duration::from_millis(1),
-        "a pass cost {:?} per idle node",
-        pass.per_node
+        per_node.fastest_of_five < Duration::from_millis(1),
+        "a pass cost {per_node:?} per idle node"
     );
 }
 

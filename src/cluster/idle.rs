@@ -12,10 +12,11 @@ use super::Cluster;
 use crate::heartbeat::{self, Beat};
 
 /// What one idle pass over a cluster's nodes showed.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct IdlePass {
-    /// What a pass cost a node, over every pass.
-    pub per_node: Duration,
+    /// What each pass cost a node, in the order the passes ran: what the
+    /// timing program holds, the fastest of five (`xcore::latency`).
+    pub per_node: Vec<Duration>,
     /// Whether each node's publication was parsed once, and never again.
     pub parsed_once: bool,
 }
@@ -53,12 +54,14 @@ impl Cluster {
         }
         self.read_all();
         let first = self.nodes.iter().all(|node| node.parses == 1);
-        let started = Instant::now();
-        for _ in 0..passes {
-            self.read_all();
-        }
         let nodes = u32::try_from(self.nodes.len()).expect("few");
-        let per_node = started.elapsed() / (passes * nodes);
+        let per_node = (0..passes)
+            .map(|_| {
+                let started = Instant::now();
+                self.read_all();
+                started.elapsed() / nodes
+            })
+            .collect();
         IdlePass {
             per_node,
             parsed_once: first && self.nodes.iter().all(|node| node.parses == 1),
