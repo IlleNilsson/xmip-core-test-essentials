@@ -129,7 +129,8 @@ impl Subscribing {
         let storage = storage(shared, name)?;
         let pickup = Pickup::open(node, configured, Arc::clone(&storage), Some(audit.clone()))?;
         let cluster = runtime::running::publication::cluster_location(&tree.service.cluster_name);
-        let send = SendStep::new((&cluster, node), Arc::clone(&storage), &tree.tuning, None);
+        let told = (None, Arc::new(SystemClock) as Arc<dyn xcore::Clock>);
+        let send = SendStep::new((&cluster, node), Arc::clone(&storage), &tree.tuning, told);
         let documents = Documents::shipped()?;
         let published_at = designed
             .iter()
