@@ -170,7 +170,11 @@ impl RealNode {
             name: name.to_string(),
             address: format!("the local endpoint {endpoint}"),
             capability,
-            remote: Arc::new(Remote::local(endpoint, std::time::Duration::ZERO)?),
+            remote: Arc::new(Remote::local(
+                endpoint,
+                std::time::Duration::ZERO,
+                rigs_clock(),
+            )?),
         })
     }
 
@@ -285,8 +289,14 @@ fn answering(name: &str, address: &str, folder: Option<&Path>) -> Result<Remote,
         &file("anchors.pem")?,
     )
     .map_err(|error| format!("REFUSED: the certificate in {}: {error}", folder.display()))?;
-    Remote::open(address, &identity)
+    Remote::open(address, &identity, rigs_clock())
         .map_err(|problem| format!("REFUSED: {name} resolves, at {address}: {problem}"))
+}
+
+/// What the rig's surfaces tell time by: it is no node, so the operating
+/// system's clock (ADR-0068, amendment 2026-11-16).
+fn rigs_clock() -> Arc<dyn xcore::Clock> {
+    Arc::new(xcore::SystemClock)
 }
 
 /// What the node at `address` publishes, or REFUSED where it does not

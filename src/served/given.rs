@@ -395,7 +395,9 @@ mod tests {
             .expect("its folder")
             .join(operate["anchors"].as_str().expect("anchors"));
         let anchors = std::fs::read_to_string(anchors).expect("the node's anchors");
-        let relaying = runtime::plane::vouched::Relaying::new(relay, &anchors).expect("relaying");
+        let clock = std::sync::Arc::new(xcore::SystemClock);
+        let relaying =
+            runtime::plane::vouched::Relaying::new(relay, &anchors, clock).expect("relaying");
         let verified = |certificate: &[u8], usage| {
             runtime::plane::vouched::verified(&relaying, &[certificate.to_vec()], usage).is_ok()
         };
