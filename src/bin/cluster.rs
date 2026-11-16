@@ -95,7 +95,7 @@ fn main() -> ExitCode {
     // The name is the image's own, so the declaration and the audit say what
     // Get-Process says (ADR-0053, amendment 2026-09-20).
     let called = image::this_process("xmip-essentials-cluster");
-    let audit = ProgramAudit::new(&called, None);
+    let audit = process_audit::program(&called);
     audit.watch_panics();
 
     let arguments = match parse(std::env::args().skip(1)) {

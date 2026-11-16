@@ -479,10 +479,11 @@ started as (cluster, stress, tests, nodes and their capabilities, rounds,
 the paths it publishes to), `stop` when it ends as it meant to, a refusal
 at the door as the failure to `start`, a failed `declare`, `publish`,
 `spawn-cluster` or `spawn-nodes` as a failure, and every panic as
-`unhandled`. The records go to `audit.toml` in `XMIP_AUDIT_DIRECTORY`, or
-to the operating system's log where none is set; `src/process_audit.rs` is
-the one place the three say it, and the audit capability writes every
-record. Under `cargo test` the variable is `target/audit`
+`unhandled`. Each hands its audit, as it starts, the file sink and its
+platform's operating system's log (`process_audit::program`), so the records
+go to `audit.toml` in `XMIP_AUDIT_DIRECTORY`, or to that log where none is
+set; `src/process_audit.rs` is the one place the three say it, and the
+audit capability writes every record. Under `cargo test` the variable is `target/audit`
 (`.cargo/config.toml`), so no test writes to `.local-work/audit` or the
 operating system's log.
 

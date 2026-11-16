@@ -139,7 +139,7 @@ fn main() -> ExitCode {
     // where a cluster named it — so the declaration, the audit and the
     // process list agree (ADR-0053, amendment 2026-09-20).
     let called = image::this_process("xmip-essentials-node");
-    let audit = ProgramAudit::new(&called, None);
+    let audit = process_audit::program(&called);
     audit.watch_panics();
 
     let arguments = match parsed {

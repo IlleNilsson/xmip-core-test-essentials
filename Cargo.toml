@@ -48,6 +48,13 @@ node = { package = "xmip-core-node", git = "https://github.com/IlleNilsson/xmip-
 # What the roll, the cluster and every node started, stopped and failed at,
 # recorded through the one audit capability (ADR-0062).
 xaudit = { package = "xmip-core-audit", git = "https://github.com/IlleNilsson/xmip-core-audit", branch = "main" }
+# What each process hands its audit as it starts: the file sink, and the
+# operating system's log for when audit cannot persist, the Windows Event
+# Log or the local syslog. Each log's crate is empty off its own platform,
+# so both are linked and each builds where it works.
+audit-file = { package = "xmip-core-audit-file", git = "https://github.com/IlleNilsson/xmip-core-audit-file", branch = "main" }
+audit-syslog = { package = "xmip-core-audit-syslog", git = "https://github.com/IlleNilsson/xmip-core-audit-syslog", branch = "main" }
+audit-windows-event-log = { package = "xmip-core-audit-windows-event-log", git = "https://github.com/IlleNilsson/xmip-core-audit-windows-event-log", branch = "main" }
 observe ={ package = "xmip-core-observe", git = "https://github.com/IlleNilsson/xmip-core-observe", branch = "main" }
 transport = { package = "xmip-core-transport", git = "https://github.com/IlleNilsson/xmip-core-transport", branch = "main" }
 # The Events a node raises and the filters its subscriptions ask by

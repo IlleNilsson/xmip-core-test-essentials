@@ -179,6 +179,7 @@ impl Eventing {
 mod tests {
     use super::*;
     use crate::support::scratch;
+    use audit_file::FileSink;
     use observe::{Act, HealthRecord, PauseState};
 
     fn record(scope: &str, health: Health) -> HealthRecord {
@@ -198,7 +199,10 @@ mod tests {
         let receiving = &cluster.with_role("receiving").name;
         let node = format!("{}/node/{receiving}", cluster.scope());
         let node = node.as_str();
-        let audit = ProgramAudit::new("xmip-essentials-eventing-test", Some(&shared));
+        let audit = ProgramAudit::new(
+            "xmip-essentials-eventing-test",
+            Some(FileSink::new(&shared)),
+        );
         let mut eventing =
             Eventing::start(node, &Capability::of(&[node::NodeRole::Receiving]), &audit);
 

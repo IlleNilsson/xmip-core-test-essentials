@@ -127,7 +127,7 @@ fn main() {
     // Start-XmipTest linked one — so the declaration and the audit say what
     // Get-Process says (ADR-0053, amendment 2026-09-20).
     let called = image::this_process("xmip-essentials-roll");
-    let audit = ProgramAudit::new(&called, None);
+    let audit = process_audit::program(&called);
     audit.watch_panics();
 
     if answered_publication(&audit) {

@@ -401,6 +401,7 @@ mod tests {
     use super::*;
     use crate::support::{path, path_roster, scratch, test_cluster};
     use crate::verdict::Contract;
+    use audit_file::FileSink;
 
     /// The test cluster's processing node, which takes up the Subscriptions.
     fn started(shared: &Path, audit: &ProgramAudit) -> Subscribing {
@@ -460,7 +461,10 @@ mod tests {
     #[test]
     fn the_configured_subscriptions_route_hold_while_paused_and_survive_a_restart() {
         let shared = scratch("subscribing");
-        let audit = ProgramAudit::new("xmip-essentials-subscribing-test", Some(&shared));
+        let audit = ProgramAudit::new(
+            "xmip-essentials-subscribing-test",
+            Some(FileSink::new(&shared)),
+        );
         let subscribing = started(&shared, &audit);
 
         let mut snapshot = Snapshot::new();

@@ -2,22 +2,38 @@
 //! cluster and every node record that they started and stopped, and every
 //! failure that ended one or cost it a round, through `xmip-core-audit`'s
 //! [`ProgramAudit`] — the one place a record is written. Nothing here writes a
-//! record of its own or reaches the operating system's log: where no audit
-//! directory is configured (`XMIP_AUDIT_DIRECTORY`), the audit capability
-//! sends the record there itself.
+//! record of its own or reaches the operating system's log: each process
+//! hands its audit the file sink and its platform's log as it starts
+//! ([`program`]), and where no audit directory is configured
+//! (`XMIP_AUDIT_DIRECTORY`), the audit capability sends the record to that
+//! log itself.
 //!
 //! Each process holds its own [`ProgramAudit`], named for its image as
-//! ADR-0053 names it, and watches its panics with it; these three calls are
-//! how the three processes say the same things the same way.
+//! ADR-0053 names it, and watches its panics with it; these calls are how
+//! the three processes say the same things the same way.
 
 use std::collections::BTreeMap;
 
+use audit_file::FileSink;
 use node::Declaration;
 use runtime::declared::{Declared, declare};
 use xaudit::program_audit::ProgramAudit;
 use xcore::{ExecutionPhase, Severity};
 
 use crate::environment;
+
+/// The audit of the process `called`, as it starts: the operating system's
+/// log of this platform handed to audit for when it cannot persist
+/// (ADR-0062 clause 3), and its records kept by the file sink in the
+/// directory `XMIP_AUDIT_DIRECTORY` names.
+#[must_use]
+pub fn program(called: &str) -> ProgramAudit {
+    #[cfg(windows)]
+    xaudit::operating_system_log::hand(audit_windows_event_log::WindowsEventLog);
+    #[cfg(unix)]
+    xaudit::operating_system_log::hand(audit_syslog::Syslog);
+    ProgramAudit::new(called, FileSink::stated(None))
+}
 
 /// The process declared (ADR-0053 clause 3): `declaration`, saying
 /// `hidden = "true"` beside it where the run declared itself hidden
@@ -111,13 +127,13 @@ mod tests {
     fn a_process_records_its_start_failure_and_stop_where_it_was_told() {
         let directory = scratch("process-audit");
         let (cluster, roll) = named();
-        let audit = ProgramAudit::new(&roll, Some(&directory));
+        let audit = ProgramAudit::new(&roll, Some(FileSink::new(&directory)));
 
         start(&audit, &[("cluster", cluster.as_str()), ("stress", "calm")]);
         fail(&audit, "publish", "could not write the snapshot");
         stop(&audit, &[("rounds", "3")]);
 
-        let text = std::fs::read_to_string(audit.file().expect("a file sink")).expect("read");
+        let text = std::fs::read_to_string(FileSink::new(&directory).path()).expect("read");
         let program = format!("program = \"{roll}\"");
         let property = format!("\"cluster\" = \"{cluster}\"");
         for said in [
@@ -138,7 +154,7 @@ mod tests {
     fn a_hidden_run_says_so_in_the_declaration_and_on_every_record() {
         let directory = scratch("process-audit-hidden");
         let (cluster, roll) = named();
-        let audit = ProgramAudit::new(&roll, Some(&directory));
+        let audit = ProgramAudit::new(&roll, Some(FileSink::new(&directory)));
         let bare = || Declaration::new(&roll, cluster_root(), Purpose::Test).expect("a name");
 
         let shown = declared_as(&audit, bare(), false).expect("declared");
@@ -148,7 +164,7 @@ mod tests {
         let hidden = declared_as(&audit, bare(), true).expect("declared");
         assert!(format!("{hidden:?}").contains("hidden"), "{hidden:?}");
         start(&audit, &[("cluster", cluster.as_str())]);
-        let text = std::fs::read_to_string(audit.file().expect("a file sink")).expect("read");
+        let text = std::fs::read_to_string(FileSink::new(&directory).path()).expect("read");
         assert!(text.contains("hidden = \"true\""), "{text}");
         std::fs::remove_dir_all(&directory).ok();
     }
