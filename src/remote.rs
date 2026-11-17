@@ -1,4 +1,4 @@
-//! The remote cabinets: postgresql, s3, azure-blob and google-cloud-storage,
+//! The remote cabinets: postgresql, aws-s3, azure-blob and google-cloud-storage,
 //! each behind the same [`Cabinet`] the filing scenario drives.
 //!
 //! Every one of these has a server at the far end in production — a
@@ -16,10 +16,10 @@ use std::sync::{Arc, Mutex};
 
 use archive::ArchiveItem;
 use archive::sql::SqlArchive;
+use archive_aws_s3::S3Archive;
 use archive_azure_blob::AzureBlobArchive;
-use archive_gcs::GcsArchive;
+use archive_google_cloud_storage::GcsArchive;
 use archive_postgresql::PostgreSql;
-use archive_s3::S3Archive;
 use library_postgresql::{Answer, Session};
 use sql::Delimiter;
 use transport::error::protocol_error;
@@ -160,10 +160,10 @@ pub struct S3Cabinet;
 
 impl S3Cabinet {
     fn serve(listener: &TcpListener) -> transport::Result<()> {
-        let mut session =
-            transport_s3::Session::new(REGION, ACCESS_KEY, SECRET_KEY).timing_out_after(TIMEOUT);
+        let mut session = transport_aws_s3::Session::new(REGION, ACCESS_KEY, SECRET_KEY)
+            .timing_out_after(TIMEOUT);
         for _ in 0..OBJECT_REQUESTS {
-            if let transport_s3::Event::Refused(code) = session.serve_one(listener)? {
+            if let transport_aws_s3::Event::Refused(code) = session.serve_one(listener)? {
                 return Err(protocol_error(format!("the session refused: {code}")));
             }
         }
@@ -173,7 +173,7 @@ impl S3Cabinet {
 
 impl Cabinet for S3Cabinet {
     fn technology(&self) -> &'static str {
-        "s3"
+        "aws-s3"
     }
 
     fn file(&self, item: ArchiveItem) -> Filed {
@@ -277,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn s3_files_an_item_whole_through_a_session() {
+    fn aws_s3_files_an_item_whole_through_a_session() {
         files_whole(&S3Cabinet);
     }
 

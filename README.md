@@ -45,8 +45,8 @@ names everywhere; the scope segment is the name in kebab case (`round-trip`,
   act — Xmip retains and archives, it does not delete (ADR-0040).
 - **Filing** — *added 2026-09-09.* Does the archive hold what it was handed:
   one probe item per contract filed through every archive technology on main
-  — parquet, sqlite, file, sql, postgresql, mssql, mariadb, s3, azure-blob, gcs —
-  archived and restored, judged equal or not, under
+  — parquet, sqlite, file, sql, postgresql, mssql, mariadb, aws-s3, azure-blob,
+  google-cloud-storage — archived and restored, judged equal or not, under
   `xmip:///essentials/filing/<technology>/<contract>`. Retention proves the
   lifecycle over one store; Filing proves every store. Each technology gets a
   `Cabinet` adapter the way each transport gets a `RoundTrip`, so a new archive

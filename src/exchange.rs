@@ -209,7 +209,7 @@ fn messaging() -> Vec<Box<dyn RoundTrip>> {
 /// The cloud APIs over http, each against an in-process far end.
 fn cloud() -> Vec<Box<dyn RoundTrip>> {
     vec![
-        Box::new(Looped(transport_s3::S3Transport::loopback())),
+        Box::new(Looped(transport_aws_s3::S3Transport::loopback())),
         Box::new(Looped(transport_azure_blob::AzureBlobTransport::loopback())),
         Box::new(Looped(
             transport_google_cloud_storage::GcsTransport::loopback(),
