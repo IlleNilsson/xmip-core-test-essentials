@@ -43,9 +43,10 @@ const SECRET_KEY: &str = "probe";
 const ACCOUNT_KEY: &str = "cHJvYmU=";
 const TOKEN: &str = "ya29.probe";
 
-/// An archive is two requests — the bytes, then the metadata beside them —
-/// and a restore is the same two back: what an object store's far end
-/// serves per filing, one connection each.
+/// An archive is two requests — the metadata, which claims the name, then
+/// the bytes — and a restore is the same two back, the metadata first
+/// (`archive::named`): what an object store's far end serves per filing,
+/// one connection each.
 const OBJECT_REQUESTS: usize = 4;
 
 /// The row id the `PostgreSQL` far end answers every `INSERT` with.
