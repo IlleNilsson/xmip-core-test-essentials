@@ -757,8 +757,11 @@ and `<cluster>-activity.toml` for the monitors (their shapes are `observe::Publi
 was started as (`-Cluster`, required: the owner names the cluster), `roll-<pid>.toml` saying what
 each roll was started with, `build-<start time>.toml` and `.log` for a roll
 still building or whose build failed, the roll's own lines in `roll-<start time>.log`,
-and under `node/` each hand-started node's snapshot and log. The folder is
-device-local and ignored by git.
+under `node/` each hand-started node's snapshot and log, and under `target/`
+the roll, cluster and node binaries' own build directory, their `measured`
+build: a running roll holds them open, so they never share the estate's
+build directory a landing builds in (ADR-0028, amendment 2026-11-20). The
+folder is device-local and ignored by git.
 
 ## The demo readiness check, 2026-11-10
 
@@ -782,7 +785,7 @@ and its log beside it under `.local-work/demo`, and its parts in order:
 | roll | rolls `-Cluster` from this tree at `-Stress` as `Start-XmipTest -Suite Core.Essentials` does | the build ended, `<cluster>-snapshot.xmip` is published within ten minutes of the roll's spawn, and then every node the run record declares runs |
 | web | `Start-XmipOperationWeb` over that snapshot with `-Tester` | its address answers https with a certificate that reaches the Essentials' authority's anchor, within a minute |
 | desktop | `dotnet build` of the Desktop operations app for `net11.0-windows10.0.19041.0`; its deployed `gui.toml`, beside the executable and never the source, rewritten to `Surface = "snapshot"` and that `Snapshot` | the app stays up for a minute; that it read the snapshot is not proved, since the app records no surface it opened |
-| extension | `Build-XmipService -Extension VsCode`, and `xmip-lsp` built by cargo in the extension's crate by the Essentials' own patched build | the VSIX and the server exist, and the server answers `initialize` over stdio with its capabilities |
+| extension | `Build-XmipService -Extension VsCode`, and `xmip-lsp` built by cargo in the extension's crate, in the estate's one workspace, whose committed `[patch]` builds every estate crate from its working tree | the VSIX and the server exist, and the server answers `initialize` over stdio with its capabilities |
 | stop | ends its own roll, the web host and the desktop app, each only while it is still what the run started, and gives the deployed `gui.toml` back as the build deploys it | every one is stopped; one that is not is FAILED and the rest are still stopped |
 
 `web` and `desktop` are SKIPPED where the roll did not pass, with the roll's
