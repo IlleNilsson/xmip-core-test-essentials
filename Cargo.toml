@@ -322,6 +322,10 @@ configure = { package = "xmip-core-configure", git = "https://github.com/IlleNil
 # The timing program's figure, the fastest of five over its rounds
 # (`xcore::latency`). Test-only.
 xcore = { package = "xmip-core", git = "https://github.com/IlleNilsson/xmip-core", branch = "main", features = ["test-support"] }
+# The folder of a test whose Event subscriptions audit in it, removed once
+# audit's keeper kept their records (`audit_file::temporary`; ADR-0065,
+# amendment 2026-11-20). Test-only.
+audit-file = { package = "xmip-core-audit-file", git = "https://github.com/IlleNilsson/xmip-core-audit-file", branch = "main", features = ["test-support"] }
 
 [lints.rust]
 # forbid, not deny: a module has no business writing unsafe. The one exception

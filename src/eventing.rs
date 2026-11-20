@@ -178,8 +178,8 @@ impl Eventing {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::scratch;
     use audit_file::FileSink;
+    use audit_file::temporary::Folder;
     use observe::{Act, HealthRecord, PauseState};
 
     fn record(scope: &str, health: Health) -> HealthRecord {
@@ -194,7 +194,8 @@ mod tests {
 
     #[test]
     fn a_node_publishes_its_event_subscriptions_as_its_hub_holds_them() {
-        let shared = scratch("eventing");
+        // Removed once audit's keeper kept what the subscriptions handed it.
+        let shared = Folder::new("essentials-eventing");
         let cluster = crate::support::test_cluster();
         let receiving = &cluster.with_role("receiving").name;
         let node = format!("{}/node/{receiving}", cluster.scope());
