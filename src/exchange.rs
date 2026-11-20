@@ -353,7 +353,6 @@ mod tests {
             Exchange::Returned(bytes) => assert_eq!(bytes, b"over file"),
             other => panic!("expected Returned, got {}", label(&other)),
         }
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -404,7 +403,6 @@ mod tests {
     fn file_carries_the_edges() {
         let dir = scratch("file-edges");
         crate::support::carries_the_edges(&FileRoundTrip::new(&dir));
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

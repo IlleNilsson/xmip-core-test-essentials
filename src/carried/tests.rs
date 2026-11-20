@@ -142,11 +142,6 @@ fn a_file_delivered_where_its_route_sends_it_is_fine_and_one_at_another_port_is_
         "{}",
         done.evidence
     );
-    drop_all(carried, &base);
-}
-
-/// The watches stopped before their folders go.
-fn drop_all(carried: Carried, base: &Path) {
-    drop(carried);
-    let _ = std::fs::remove_dir_all(base);
+    // The watches stopped before their folders go.
+    std::mem::drop(carried);
 }

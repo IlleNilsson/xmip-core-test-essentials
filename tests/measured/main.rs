@@ -12,22 +12,17 @@
 
 mod low_latency;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{Duration, Instant};
 
+use file::temporary::Folder;
 use xmip_core_test_essentials::cluster::Orders;
 use xmip_core_test_essentials::heartbeat::Heartbeat;
 use xmip_core_test_essentials::{Cluster, Roster, Stress};
 
-/// A directory of a test's own, empty.
-fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "xmip-essentials-measured-{name}-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("the scratch directory");
-    dir
+/// A folder of a test's own, empty, removed when dropped.
+fn scratch(name: &str) -> Folder {
+    Folder::new(&format!("essentials-measured-{name}"))
 }
 
 /// The owner, 2026-09-26: more than a millisecond, apart from load, is
@@ -53,7 +48,6 @@ fn a_pass_over_idle_nodes_costs_each_under_a_millisecond() {
     let idle = format!("xmip:///{}/node/{}", cluster.name, names[0]);
     let pass = spawned.idle_pass(&dir, &idle, 100);
     spawned.stop();
-    std::fs::remove_dir_all(&dir).ok();
     assert!(
         pass.parsed_once,
         "an idle node's publication is not parsed again"
@@ -91,5 +85,4 @@ fn the_first_beat_is_written_within_milliseconds_of_the_start() {
         took.fastest_of_five < Duration::from_millis(100),
         "the first beat: {took:?}"
     );
-    std::fs::remove_dir_all(&dir).ok();
 }

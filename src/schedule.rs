@@ -405,7 +405,6 @@ mod tests {
                 .any(|r| r.health != Health::Fine && !r.evidence.is_empty()),
             "{udp:?}"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -425,7 +424,6 @@ mod tests {
             .map(|v| (v.transport.clone(), v.contract))
             .collect();
         assert_eq!(seen, expected);
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -434,7 +432,6 @@ mod tests {
         let dir = scratch("brutal");
         let mut schedule = Schedule::new(cluster_root(), &dir).at(Stress::Brutal);
         stress_rounds(&mut schedule, Stress::Brutal.rounds());
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -457,7 +454,6 @@ mod tests {
             );
             assert!(records.iter().all(|r| r.health == Health::Fine));
         }
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -487,7 +483,6 @@ mod tests {
         );
         // A yellow leaf rolls up as Holding (ADR-0041); red never appears.
         assert_ne!(snapshot.worst(&cluster_root()), Some(Health::Done));
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -516,7 +511,6 @@ mod tests {
             Some(Health::Fine),
             "file is left alone"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -584,6 +578,5 @@ mod tests {
             at("send", Counted::Bytes).is_some(),
             "the bytes that moved, at Send"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

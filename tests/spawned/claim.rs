@@ -72,5 +72,4 @@ fn two_processes_never_both_claim_the_same_item() {
             );
         }
     }
-    std::fs::remove_dir_all(&dir).ok();
 }

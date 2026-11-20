@@ -187,28 +187,24 @@ mod tests {
     fn parquet_files_an_item_whole() {
         let dir = scratch("cabinet-parquet");
         files_whole(&ParquetCabinet::new(&dir));
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn sqlite_files_an_item_whole() {
         let dir = scratch("cabinet-sqlite");
         files_whole(&SqliteCabinet::new(&dir));
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn file_files_an_item_whole() {
         let dir = scratch("cabinet-file");
         files_whole(&FileCabinet::new(&dir));
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn sql_script_files_an_item_whole() {
         let dir = scratch("cabinet-sql");
         files_whole(&SqlScriptCabinet::new(&dir));
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

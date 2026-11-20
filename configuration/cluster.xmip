@@ -75,6 +75,15 @@ roles = "executing"
 [nodes.OP1]
 roles = "operational, monitoring"
 
+# A person's request is signed by the cluster's authority this table names,
+# the `authority` folder beside the node's slice, where the trust reads its
+# anchor and, where the authority's key is kept, its key (ADR-0034,
+# amendment 2026-10-15). It is part of the node's signed slice, so a hand
+# edit of it is refused (ADR-0031, amendment 2026-11-19). The Essentials
+# signs a tester's request by this slice (Initialize-XmipEssentialsAuthority).
+[nodes.OP1.provision.operator]
+authority = "authority"
+
 [nodes.DS1]
 roles = "storage"
 

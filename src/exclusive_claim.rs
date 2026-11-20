@@ -325,7 +325,6 @@ mod tests {
             Some(Health::Fine),
             "the atomic rename claim holds under contention"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -345,7 +344,6 @@ mod tests {
             saw_red,
             "a dropped claim must surface as a breach within 80 rounds"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -363,7 +361,6 @@ mod tests {
                 "{style} holds the claim"
             );
         }
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

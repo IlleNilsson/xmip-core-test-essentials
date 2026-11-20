@@ -94,15 +94,13 @@ impl Documents {
                 let bytes = std::fs::read(&file).map_err(|error| refused(&file, error))?;
                 let stem = file
                     .file_stem()
-                    .map(|stem| stem.to_string_lossy().into_owned())
-                    .unwrap_or_default();
+                    .map_or_default(|stem| stem.to_string_lossy().into_owned());
                 documents.push(Document { stem, bytes });
             }
             documents.sort_by(|a, b| a.stem.cmp(&b.stem));
             let name = place
                 .file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-                .unwrap_or_default();
+                .map_or_default(|name| name.to_string_lossy().into_owned());
             by_folder.insert(name, documents);
         }
         let subscriptions: Vec<Subscription> = configure::applications(cluster)?

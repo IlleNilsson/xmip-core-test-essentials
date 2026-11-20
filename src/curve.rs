@@ -50,19 +50,18 @@ mod tests {
 
     /// A scenario as a roll composes it: publishing under its own subtree of
     /// the node, never at the node, which is what `roll.rs` does.
-    fn scenario(node: &str, name: &str) -> (Schedule, std::path::PathBuf) {
-        let dir = std::env::temp_dir().join(format!("xmip-curve-test-{name}"));
-        std::fs::remove_dir_all(&dir).ok();
+    fn scenario(node: &str, name: &str) -> (file::temporary::Folder, Schedule) {
+        let dir = crate::support::scratch(&format!("curve-{name}"));
         let schedule =
-            Schedule::new(format!("{node}/{name}"), &dir).over(crate::support::three(&dir));
-        (schedule, dir)
+            Schedule::new(format!("{node}/{name}"), &*dir).over(crate::support::three(&dir));
+        (dir, schedule)
     }
 
     #[test]
     fn a_node_s_history_holds_the_points_its_scenarios_counted() {
         let root = cluster_root();
         let node = root.as_str();
-        let (mut schedule, dir) = scenario(node, "round-trip");
+        let (_dir, mut schedule) = scenario(node, "round-trip");
         let mut history = History::default();
 
         for _ in 0..2 {
@@ -80,7 +79,6 @@ mod tests {
                 "the curve holds {kind}: {points:?}"
             );
         }
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -90,7 +88,7 @@ mod tests {
         // so recording the snapshot alone leaves the node's own curve empty.
         let root = cluster_root();
         let node = root.as_str();
-        let (mut schedule, dir) = scenario(node, "heavy-load");
+        let (_dir, mut schedule) = scenario(node, "heavy-load");
         let mut history = History::default();
 
         history.record(&schedule.tick());
@@ -100,14 +98,13 @@ mod tests {
             parsed["points"].as_array().expect("points").as_slice(),
             [] as [toml::Value; 0]
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn the_point_is_the_rollup_the_snapshot_file_publishes() {
         let root = cluster_root();
         let node = root.as_str();
-        let (mut schedule, dir) = scenario(node, "filing");
+        let (_dir, mut schedule) = scenario(node, "filing");
         let mut history = History::default();
         let snapshot = schedule.tick();
 
@@ -122,6 +119,5 @@ mod tests {
             .map(|count| count.value);
 
         assert_eq!(recorded, measured, "the curve is what the snapshot says");
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

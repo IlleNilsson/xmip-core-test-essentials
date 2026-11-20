@@ -67,5 +67,4 @@ fn a_spawned_cluster_publishes_its_nodes_and_stops_them_with_itself() {
 
     cluster.stop();
     assert!(!cluster.alive(), "the cluster left when it was asked");
-    std::fs::remove_dir_all(&dir).ok();
 }

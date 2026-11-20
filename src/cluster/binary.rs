@@ -6,15 +6,17 @@
 //! for the same way and both may be named outright.
 
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// The `xmip-essentials-node` binary: `XMIP_ESSENTIALS_NODE` if set, else
-/// beside the current executable, else one directory up from it (a test runs
-/// from `deps/`).
+/// beside the current executable, where cargo writes every binary of the
+/// crate. A test program finds a binary by `CARGO_BIN_EXE_<name>` instead:
+/// cargo keeps it elsewhere, in `deps/` before Cargo 1.100 and in a unit's
+/// own folder under `build/` since.
 ///
 /// # Errors
 ///
-/// When none of those is a file.
+/// When neither is a file.
 pub fn node_binary() -> io::Result<PathBuf> {
     found("XMIP_ESSENTIALS_NODE", "xmip-essentials-node")
 }
@@ -25,28 +27,23 @@ pub fn node_binary() -> io::Result<PathBuf> {
 ///
 /// # Errors
 ///
-/// When none of those is a file.
+/// When neither is a file.
 pub fn cluster_binary() -> io::Result<PathBuf> {
     found("XMIP_ESSENTIALS_CLUSTER_BINARY", "xmip-essentials-cluster")
 }
 
 /// The executable called `stem`: what `variable` names, else beside the
-/// current executable, else one directory up from it.
+/// current executable.
 fn found(variable: &str, stem: &str) -> io::Result<PathBuf> {
     if let Some(named) = std::env::var_os(variable) {
         return Ok(PathBuf::from(named));
     }
     let current = std::env::current_exe()?;
     let file = format!("{stem}{}", std::env::consts::EXE_SUFFIX);
-    let beside = current.parent().map(|dir| dir.join(&file));
-    let above = current
+    current
         .parent()
-        .and_then(Path::parent)
-        .map(|dir| dir.join(&file));
-    [beside, above]
-        .into_iter()
-        .flatten()
-        .find(|candidate| candidate.is_file())
+        .map(|dir| dir.join(&file))
+        .filter(|candidate| candidate.is_file())
         .ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::NotFound,

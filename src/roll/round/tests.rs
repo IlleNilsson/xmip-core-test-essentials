@@ -140,5 +140,4 @@ fn a_served_round_holds_only_the_nodes_and_draws_a_struck_location_as_it_is() {
         location.evidence
     );
     drop(carried);
-    let _ = std::fs::remove_dir_all(&base);
 }

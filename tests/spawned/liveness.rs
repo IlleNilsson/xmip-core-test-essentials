@@ -1,9 +1,9 @@
 //! Whether a node process is alive: beats, never rounds (the owner,
 //! 2026-09-26), judged quickly enough for a test.
 
-use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use file::temporary::Folder;
 use observe::{Health, Snapshot, now_unix_nanos};
 use xmip_core_test_essentials::heartbeat::{self, Beat};
 use xmip_core_test_essentials::{Cluster, Stress, cluster_root};
@@ -13,7 +13,7 @@ use crate::{alone, node_binary, scratch, snapshot_record};
 
 /// One node of the test cluster, judged quickly, `starting` to show it is
 /// alive.
-fn quick(starting: Duration) -> (PathBuf, Cluster) {
+fn quick(starting: Duration) -> (Folder, Cluster) {
     let dir = scratch("cluster");
     let cluster = Cluster::quick(
         node_binary(),
@@ -63,7 +63,6 @@ fn a_node_that_stops_beating_is_restarted_and_the_restart_is_a_yellow() {
     assert_ne!(rollup.health, Health::Fine, "the rollup carries the fault");
     cluster.stop();
     assert_eq!(cluster.alive(), 0);
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 /// The owner, 2026-09-26: a node that beats is alive while its first round
@@ -106,7 +105,6 @@ fn a_node_that_beats_but_has_not_finished_a_round_is_never_restarted() {
         process.evidence
     );
     cluster.stop();
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 /// The owner, 2026-09-26: a node that never beats is starting until its
@@ -133,5 +131,4 @@ fn a_node_that_never_beats_is_restarted_once_starting_is_over() {
     cluster.tick();
     assert_eq!(cluster.restarts(), 1, "silent past starting is hung");
     cluster.stop();
-    std::fs::remove_dir_all(&dir).ok();
 }

@@ -49,7 +49,6 @@ fn a_clean_run_stays_within_budget_and_is_green() {
         Some(Health::Fine),
         "loopback beats every budget with no spikes"
     );
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 #[test]
@@ -68,6 +67,5 @@ fn file_stays_within_its_budget_while_the_others_spike() {
             Some(Health::Fine),
             "file is left fast at {stress:?}"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

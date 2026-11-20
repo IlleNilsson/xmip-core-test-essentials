@@ -248,7 +248,6 @@ mod tests {
             cleared,
             "the added node should bring the backlog back to green"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -263,7 +262,6 @@ mod tests {
             measure(&dir).0 > 0,
             "the backlog is real files in the directory"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -288,6 +286,5 @@ mod tests {
             "the evidence names the feeders: {}",
             record.evidence
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

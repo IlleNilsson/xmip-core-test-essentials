@@ -106,10 +106,9 @@ mod tests {
 
     #[test]
     fn a_ticked_schedule_serializes_to_toml_with_records_and_counts() {
-        let dir = std::env::temp_dir().join("xmip-report-test");
-        std::fs::remove_dir_all(&dir).ok();
+        let dir = crate::support::scratch("report");
         let root = cluster_root();
-        let mut schedule = Schedule::new(root.as_str(), &dir).over(crate::support::three(&dir));
+        let mut schedule = Schedule::new(root.as_str(), &*dir).over(crate::support::three(&dir));
         let snapshot = schedule.tick();
 
         let text = roll_toml(&root, &snapshot, None, None);
@@ -124,16 +123,14 @@ mod tests {
             parsed["counts"].as_array().expect("counts").as_slice(),
             [] as [toml::Value; 0]
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn a_written_snapshot_reads_back_whole() {
-        let dir = std::env::temp_dir().join("xmip-report-readback-test");
-        std::fs::remove_dir_all(&dir).ok();
+        let dir = crate::support::scratch("report-readback");
         let root = cluster_root();
         let receive = format!("{root}/receive");
-        let mut schedule = Schedule::new(root.as_str(), &dir).over(crate::support::three(&dir));
+        let mut schedule = Schedule::new(root.as_str(), &*dir).over(crate::support::three(&dir));
         let written = schedule.tick();
 
         let (read, hops) =
@@ -160,7 +157,6 @@ mod tests {
         );
         assert!(read.measure(&receive, Counted::Streams).is_some());
         assert!(node_from_toml("not = [toml").is_err());
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -194,10 +190,9 @@ mod tests {
 
     #[test]
     fn history_serializes_to_toml_points() {
-        let dir = std::env::temp_dir().join("xmip-report-history-test");
-        std::fs::remove_dir_all(&dir).ok();
+        let dir = crate::support::scratch("report-history");
         let root = cluster_root();
-        let mut schedule = Schedule::new(root.as_str(), &dir).over(crate::support::three(&dir));
+        let mut schedule = Schedule::new(root.as_str(), &*dir).over(crate::support::three(&dir));
         let mut history = History::default();
         // As a roll records a round: the node's rollup beside every scope's own
         // series, since a count sits at the stage that took it (curve.rs).
@@ -214,6 +209,5 @@ mod tests {
                 .iter()
                 .any(|p| p["counted"].as_str() == Some("bytes"))
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

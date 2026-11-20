@@ -55,8 +55,7 @@ pub(super) fn configured(
         .map(|one| (one.to_string(), roster.capability(one)))
         .collect();
     let processing: Vec<&str> = xcluster::every(Placed::Process.requirement(), &candidates)
-        .map(|on| on.into_iter().map(|(one, _)| one.as_str()).collect())
-        .unwrap_or_default();
+        .map_or_default(|on| on.into_iter().map(|(one, _)| one.as_str()).collect());
     let nodes: Vec<(String, Capability)> = candidates
         .iter()
         .map(|(one, _)| {

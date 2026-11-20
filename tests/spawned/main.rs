@@ -15,10 +15,11 @@ mod liveness;
 mod nodes;
 mod tree;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use configure::fixture::TestCluster;
+use file::temporary::Folder;
 use observe::{HealthRecord, Snapshot};
 
 /// Held for the whole of each test, so this program's tests run one at a
@@ -42,12 +43,9 @@ fn cluster_binary() -> &'static Path {
     Path::new(env!("CARGO_BIN_EXE_xmip-essentials-cluster"))
 }
 
-/// A fresh, empty scratch directory for a test, unique per name and run so
-/// parallel tests never collide. The test removes it when done.
-fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("xmip-play-{name}-{}", observe::now_unix_nanos()));
-    std::fs::remove_dir_all(&dir).ok();
-    dir
+/// A fresh, empty folder of a test's own, removed when dropped.
+fn scratch(name: &str) -> Folder {
+    Folder::new(&format!("essentials-spawned-{name}"))
 }
 
 /// The test cluster's receiving, processing and sending node, a

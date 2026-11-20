@@ -1,11 +1,11 @@
 //! A cluster's nodes as processes: what they publish, how they leave, and
 //! how they are refused.
 
-use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use configure::fixture::test_cluster;
+use file::temporary::Folder;
 use observe::{Health, now_unix_nanos};
 use xmip_core_test_essentials::cluster::Orders;
 use xmip_core_test_essentials::heartbeat::{self, Beat};
@@ -34,7 +34,7 @@ pub fn orders(stress: Stress, count: usize, rounds: u64) -> Orders {
 }
 
 /// A cluster of the test cluster's first `count` nodes.
-fn spawn(stress: Stress, count: usize, rounds: u64) -> (PathBuf, Cluster) {
+fn spawn(stress: Stress, count: usize, rounds: u64) -> (Folder, Cluster) {
     let dir = scratch("cluster");
     let cluster = Cluster::spawn(
         node_binary(),
@@ -51,7 +51,7 @@ fn spawn(stress: Stress, count: usize, rounds: u64) -> (PathBuf, Cluster) {
 #[test]
 fn a_realistic_cluster_publishes_rolls_up_and_stops_clean() {
     let _alone = alone();
-    let (dir, mut cluster) = spawn(Stress::Calm, 3, 0);
+    let (_dir, mut cluster) = spawn(Stress::Calm, 3, 0);
     assert_eq!(cluster.alive(), 3);
 
     let mut snapshot = cluster.tick().clone();
@@ -93,13 +93,12 @@ fn a_realistic_cluster_publishes_rolls_up_and_stops_clean() {
     cluster.stop();
     assert_eq!(cluster.alive(), 0, "stop leaves no child running");
     assert_eq!(cluster.restarts(), 0);
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 #[test]
 fn a_node_that_exits_is_reported_with_its_code_and_the_cluster_stays_up() {
     let _alone = alone();
-    let (dir, mut cluster) = spawn(Stress::Calm, 1, 1);
+    let (_dir, mut cluster) = spawn(Stress::Calm, 1, 1);
     let mut last = cluster.tick().clone();
     for _ in 0..8 {
         last = cluster.tick().clone();
@@ -115,7 +114,6 @@ fn a_node_that_exits_is_reported_with_its_code_and_the_cluster_stays_up() {
         process.evidence
     );
     cluster.stop();
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 /// The owner, 2026-09-26: more than a millisecond, apart from load, is
@@ -136,7 +134,6 @@ fn a_pass_over_idle_nodes_reads_their_beats_and_parses_nothing() {
         "an idle node's publication is not parsed again"
     );
     cluster.stop();
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 /// The owner's shape, 2026-09-19: nodes run the test that was named, and a
@@ -208,7 +205,6 @@ fn declared_nodes_run_the_named_test_and_hand_each_pair_along_the_path() {
 
     cluster.stop();
     assert_eq!(cluster.alive(), 0);
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 /// The owner, 2026-09-26: *if something takes more than a millisecond,
@@ -260,7 +256,6 @@ fn a_node_beats_within_milliseconds_of_its_start() {
         took < Duration::from_secs(1),
         "the first beat took {took:?}"
     );
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 #[test]
@@ -289,7 +284,6 @@ fn a_node_told_an_unknown_scenario_is_refused_with_exit_code_two() {
         "{said}"
     );
     assert!(!snapshot.exists(), "nothing ran");
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 /// Every node of the test cluster at the brutal level: forty processes, the
@@ -300,7 +294,7 @@ fn a_node_told_an_unknown_scenario_is_refused_with_exit_code_two() {
 fn brutal_cluster_of_every_node() {
     let _alone = alone();
     let every = test_cluster().nodes.len();
-    let (dir, mut cluster) = spawn(Stress::Brutal, every, 0);
+    let (_dir, mut cluster) = spawn(Stress::Brutal, every, 0);
     let mut snapshot = cluster.tick().clone();
     for _ in 0..4 {
         snapshot = merge_into(snapshot, cluster.tick());
@@ -317,5 +311,4 @@ fn brutal_cluster_of_every_node() {
     assert_eq!(published, every, "every one of {every} nodes published");
     cluster.stop();
     assert_eq!(cluster.alive(), 0);
-    std::fs::remove_dir_all(&dir).ok();
 }

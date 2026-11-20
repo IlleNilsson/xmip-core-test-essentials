@@ -63,12 +63,8 @@ pub fn leave(
     // rest, and the next roll on this cluster clears the directory first.
     image::clear();
     let rounds = ran.round.to_string();
-    let taken = ran
-        .dropping
-        .as_ref()
-        .map(Dropping::words)
-        .unwrap_or_default();
-    let carried = ran.carried.as_ref().map(Carried::words).unwrap_or_default();
+    let taken = ran.dropping.as_ref().map_or_default(Dropping::words);
+    let carried = ran.carried.as_ref().map_or_default(Carried::words);
     process_audit::stop(
         audit,
         &[

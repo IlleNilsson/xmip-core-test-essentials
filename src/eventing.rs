@@ -201,7 +201,7 @@ mod tests {
         let node = node.as_str();
         let audit = ProgramAudit::new(
             "xmip-essentials-eventing-test",
-            Some(FileSink::new(&shared)),
+            Some(FileSink::new(&*shared)),
         );
         let mut eventing =
             Eventing::start(node, &Capability::of(&[node::NodeRole::Receiving]), &audit);

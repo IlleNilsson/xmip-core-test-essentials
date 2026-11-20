@@ -127,13 +127,13 @@ mod tests {
     fn a_process_records_its_start_failure_and_stop_where_it_was_told() {
         let directory = scratch("process-audit");
         let (cluster, roll) = named();
-        let audit = ProgramAudit::new(&roll, Some(FileSink::new(&directory)));
+        let audit = ProgramAudit::new(&roll, Some(FileSink::new(&*directory)));
 
         start(&audit, &[("cluster", cluster.as_str()), ("stress", "calm")]);
         fail(&audit, "publish", "could not write the snapshot");
         stop(&audit, &[("rounds", "3")]);
 
-        let text = std::fs::read_to_string(FileSink::new(&directory).path()).expect("read");
+        let text = std::fs::read_to_string(FileSink::new(&*directory).path()).expect("read");
         let program = format!("program = \"{roll}\"");
         let property = format!("\"cluster\" = \"{cluster}\"");
         for said in [
@@ -147,14 +147,13 @@ mod tests {
         ] {
             assert!(text.contains(said), "{said} in {text}");
         }
-        std::fs::remove_dir_all(&directory).ok();
     }
 
     #[test]
     fn a_hidden_run_says_so_in_the_declaration_and_on_every_record() {
         let directory = scratch("process-audit-hidden");
         let (cluster, roll) = named();
-        let audit = ProgramAudit::new(&roll, Some(FileSink::new(&directory)));
+        let audit = ProgramAudit::new(&roll, Some(FileSink::new(&*directory)));
         let bare = || Declaration::new(&roll, cluster_root(), Purpose::Test).expect("a name");
 
         let shown = declared_as(&audit, bare(), false).expect("declared");
@@ -164,8 +163,7 @@ mod tests {
         let hidden = declared_as(&audit, bare(), true).expect("declared");
         assert!(format!("{hidden:?}").contains("hidden"), "{hidden:?}");
         start(&audit, &[("cluster", cluster.as_str())]);
-        let text = std::fs::read_to_string(FileSink::new(&directory).path()).expect("read");
+        let text = std::fs::read_to_string(FileSink::new(&*directory).path()).expect("read");
         assert!(text.contains("hidden = \"true\""), "{text}");
-        std::fs::remove_dir_all(&directory).ok();
     }
 }

@@ -266,7 +266,6 @@ mod tests {
                 .is_some_and(|count| count.value > 0),
             "the bytes moved are published at the node"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -291,7 +290,6 @@ mod tests {
             }
         }
         assert!(ever_red, "a skipped filing must surface as a fault");
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// Drive `filing` for `rounds` at a level: every round's rollup honest,
@@ -331,7 +329,6 @@ mod tests {
             faulted,
             "at three times the skip rate a skip surfaces within the rounds"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -340,6 +337,5 @@ mod tests {
         let dir = scratch("filing-brutal");
         let mut filing = Filing::new(scope("filing"), &dir).at(Stress::Brutal);
         stress_rounds(&mut filing, Stress::Brutal.rounds());
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

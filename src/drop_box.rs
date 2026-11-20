@@ -363,6 +363,5 @@ mod tests {
         }
         assert_eq!(files, dropped as u64);
         drop(dropping);
-        let _ = std::fs::remove_dir_all(&shared);
     }
 }

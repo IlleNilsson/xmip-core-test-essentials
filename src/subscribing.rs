@@ -463,7 +463,7 @@ mod tests {
         let shared = scratch("subscribing");
         let audit = ProgramAudit::new(
             "xmip-essentials-subscribing-test",
-            Some(FileSink::new(&shared)),
+            Some(FileSink::new(&*shared)),
         );
         let subscribing = started(&shared, &audit);
 
@@ -561,6 +561,5 @@ mod tests {
         assert!(again.released().is_empty(), "Failed: not tried by itself");
         assert!(again.act(&id, Act::Remove, "ilian").is_err());
         drop(again);
-        let _ = std::fs::remove_dir_all(&shared);
     }
 }

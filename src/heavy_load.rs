@@ -373,7 +373,6 @@ mod tests {
             Some(Health::Fine),
             "tcp carries a megabyte"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -386,7 +385,6 @@ mod tests {
             Some(Health::Fine),
             "a datagram cannot hold a megabyte"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -421,7 +419,6 @@ mod tests {
             file.evidence.contains("integrity only"),
             "no parse above the ceiling"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -451,7 +448,6 @@ mod tests {
             moved > 1024 * 1024,
             "several megabytes moved across two ticks"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -523,7 +519,6 @@ mod tests {
                 "{record:?}"
             );
         }
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -540,7 +535,6 @@ mod tests {
             udp.iter().all(|r| r.health == Health::Stressed),
             "refused the megabyte, carried the rest: {udp:?}"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -549,6 +543,5 @@ mod tests {
         let dir = scratch("heavy-load-brutal");
         let mut hl = HeavyLoad::new(scope("heavy-load"), &dir).at(Stress::Brutal);
         stress_rounds(&mut hl, Stress::Brutal.rounds());
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

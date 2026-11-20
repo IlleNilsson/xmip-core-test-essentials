@@ -324,7 +324,6 @@ mod tests {
             "injected spikes should drive p99 past a budget — a Done rolls up to Holding \
              (ADR-0041)"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// Drive `ff` for `rounds` at a level: every record green, or its p99
@@ -359,7 +358,6 @@ mod tests {
             Some(Health::Fine),
             "at three times the spike rate, a p99 blows its budget within the rounds"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -368,7 +366,6 @@ mod tests {
         let dir = scratch("low-latency-brutal");
         let mut ff = LowLatency::new(scope("low-latency"), &dir).at(Stress::Brutal);
         stress_rounds(&mut ff, Stress::Brutal.rounds());
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

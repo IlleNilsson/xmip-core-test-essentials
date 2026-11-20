@@ -263,7 +263,7 @@ mod tests {
         .map(|node| node.expect("a node of each kind").clone())
         .collect();
         let cluster = crate::cluster_name().expect("the test cluster is named");
-        let base = std::env::temp_dir().join(format!("xmip-given-{}", std::process::id()));
+        let base = crate::support::scratch("given");
         let now = observe::now_unix_nanos() / 1_000_000_000;
         let issuer = provision::Issuer::kept_or_made(
             &crate::environment::authority(),
@@ -361,7 +361,6 @@ mod tests {
                 );
             }
         }
-        let _ = std::fs::remove_dir_all(&base);
     }
 
     /// The `[tuning] connect_retransmissions` the node configured at `path`

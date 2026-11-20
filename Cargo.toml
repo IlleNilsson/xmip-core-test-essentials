@@ -51,10 +51,9 @@ xaudit = { package = "xmip-core-audit", git = "https://github.com/IlleNilsson/xm
 # What each process hands its audit as it starts: the file sink, and the
 # operating system's log for when audit cannot persist, the Windows Event
 # Log or the local syslog. Each log's crate is empty off its own platform,
-# so both are linked and each builds where it works.
+# so each is a dependency of its own platform alone, in the target tables
+# below (ADR-0062, amendment 2026-11-19).
 audit-file = { package = "xmip-core-audit-file", git = "https://github.com/IlleNilsson/xmip-core-audit-file", branch = "main" }
-audit-syslog = { package = "xmip-core-audit-syslog", git = "https://github.com/IlleNilsson/xmip-core-audit-syslog", branch = "main" }
-audit-windows-event-log = { package = "xmip-core-audit-windows-event-log", git = "https://github.com/IlleNilsson/xmip-core-audit-windows-event-log", branch = "main" }
 observe ={ package = "xmip-core-observe", git = "https://github.com/IlleNilsson/xmip-core-observe", branch = "main" }
 transport = { package = "xmip-core-transport", git = "https://github.com/IlleNilsson/xmip-core-transport", branch = "main" }
 # The Events a node raises and the filters its subscriptions ask by
@@ -84,14 +83,13 @@ route_content = { package = "xmip-core-route-content", git = "https://github.com
 # survive the node: the node's own embedded Storage node — RocksDB for the
 # Ledger, SQLite for the administration database — sealed under a
 # key-encryption key of the machine's key store: DPAPI on Windows, a
-# private file on Unix. And the Journey of a held pair, read back.
+# private file on Unix, each in its platform's table below. And the Journey
+# of a held pair, read back.
 persist = { package = "xmip-core-persist", git = "https://github.com/IlleNilsson/xmip-core-persist", branch = "main" }
 rocksdb = { package = "xmip-core-persist-rocksdb", git = "https://github.com/IlleNilsson/xmip-core-persist-rocksdb", branch = "main" }
 sqlite = { package = "xmip-core-persist-sqlite", git = "https://github.com/IlleNilsson/xmip-core-persist-sqlite", branch = "main" }
 journey = { package = "xmip-core-journey", git = "https://github.com/IlleNilsson/xmip-core-journey", branch = "main" }
 secret = { package = "xmip-core-secret", git = "https://github.com/IlleNilsson/xmip-core-secret", branch = "main" }
-secret_dpapi = { package = "xmip-core-secret-dpapi", git = "https://github.com/IlleNilsson/xmip-core-secret-dpapi", branch = "main" }
-secret_file = { package = "xmip-core-secret-file", git = "https://github.com/IlleNilsson/xmip-core-secret-file", branch = "main" }
 # The one refusal of a size over a ceiling (`net::ceiling`).
 net = { package = "xmip-core-library-net", git = "https://github.com/IlleNilsson/xmip-core-library-net", branch = "main" }
 # The drop box's far ends (`drop_box/far_ends.rs`): the FTPS servers'
@@ -200,6 +198,9 @@ transport_unix_socket = { package = "xmip-core-transport-unix-socket", git = "ht
 stream = { package = "xmip-core-stream", git = "https://github.com/IlleNilsson/xmip-core-stream", branch = "main" }
 xcore = { package = "xmip-core", git = "https://github.com/IlleNilsson/xmip-core", branch = "main" }
 contract = { package = "xmip-core-contract", git = "https://github.com/IlleNilsson/xmip-core-contract", branch = "main" }
+# A folder of a test's own (`file::temporary`), for the rolls' scenarios and
+# the tests here: the Essentials is a test, never in a node.
+file = { package = "xmip-core-library-file", git = "https://github.com/IlleNilsson/xmip-core-library-file", branch = "main", features = ["test-support"] }
 # The varint a protobuf probe is written with.
 codec = { package = "xmip-core-library-codec", git = "https://github.com/IlleNilsson/xmip-core-library-codec", branch = "main" }
 # SQL's string literal, read back once for every far end that answers an
@@ -278,6 +279,15 @@ contract_sql = { package = "xmip-core-contract-sql", git = "https://github.com/I
 # derives the shapes; toml serialises them.
 serde = { version = "1", features = ["derive"] }
 toml = "1.2.1"
+
+# The operating system's log and the key store of each platform (above).
+[target.'cfg(windows)'.dependencies]
+audit-windows-event-log = { package = "xmip-core-audit-windows-event-log", git = "https://github.com/IlleNilsson/xmip-core-audit-windows-event-log", branch = "main" }
+secret_dpapi = { package = "xmip-core-secret-dpapi", git = "https://github.com/IlleNilsson/xmip-core-secret-dpapi", branch = "main" }
+
+[target.'cfg(unix)'.dependencies]
+audit-syslog = { package = "xmip-core-audit-syslog", git = "https://github.com/IlleNilsson/xmip-core-audit-syslog", branch = "main" }
+secret_file = { package = "xmip-core-secret-file", git = "https://github.com/IlleNilsson/xmip-core-secret-file", branch = "main" }
 
 [features]
 # What the crate's programs that spawn its binaries read of a cluster beyond

@@ -106,7 +106,6 @@ mod tests {
 
         assert_eq!(outcome, Outcome::Delivered);
         assert_eq!(bytes, Contract::Text.payload().len() as u64);
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -185,7 +184,6 @@ mod tests {
             "not carried:\n{}",
             unexplained.join("\n")
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -193,7 +191,6 @@ mod tests {
     fn brutal_sizes_over_every_transport() {
         let dir = scratch("round-trip-brutal");
         let (_, unexplained) = drive(&all_transports(&dir), Stress::Brutal);
-        std::fs::remove_dir_all(&dir).ok();
         assert!(
             unexplained.is_empty(),
             "not carried:\n{}",

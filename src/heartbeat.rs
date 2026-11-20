@@ -160,7 +160,6 @@ mod tests {
         let heart = Heartbeat::start(&path, Duration::from_secs(60));
         assert_eq!(read(&path).rounds, 0, "beating before its first round");
         drop(heart);
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// A node keeps beating while no round finishes, and says the rounds it
@@ -186,6 +185,5 @@ mod tests {
             stopping.elapsed() < Duration::from_secs(1),
             "it stops at once"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

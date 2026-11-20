@@ -50,13 +50,11 @@ impl Judged {
                 }
                 let file = record.file_name().to_string_lossy().to_string();
                 let signed = drop_box.won(protocol, party, &file);
-                let mut winners: Vec<String> = std::fs::read_dir(&signed)
-                    .map(|read| {
-                        read.flatten()
-                            .map(|one| one.file_name().to_string_lossy().to_string())
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                let mut winners: Vec<String> = std::fs::read_dir(&signed).map_or_default(|read| {
+                    read.flatten()
+                        .map(|one| one.file_name().to_string_lossy().to_string())
+                        .collect()
+                });
                 winners.sort();
                 self.files += 1;
                 let named = format!("{party}/{file}");

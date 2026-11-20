@@ -71,13 +71,10 @@ pub(crate) fn three(dir: &std::path::Path) -> Vec<Box<dyn crate::exchange::Round
     ]
 }
 
-/// A fresh, empty scratch directory for a test, unique per name and run so
-/// parallel tests never collide. The test removes it when done.
+/// A fresh, empty folder of a test's own, removed when it is dropped.
 #[cfg(test)]
-pub(crate) fn scratch(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("xmip-play-{name}-{}", observe::now_unix_nanos()));
-    std::fs::remove_dir_all(&dir).ok();
-    dir
+pub(crate) fn scratch(name: &str) -> file::temporary::Folder {
+    file::temporary::Folder::new(&format!("essentials-{name}"))
 }
 
 /// The test cluster, what every test takes its cluster's and its nodes'

@@ -369,7 +369,6 @@ mod tests {
             Some(2 * CONTRACTS.len() as u64),
             "every pair delivered, both rounds"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -418,7 +417,6 @@ mod tests {
             violations(&snapshot, &scope("storm")).is_empty(),
             "the rollup still tells the truth"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -436,7 +434,6 @@ mod tests {
                 .any(|r| r.health == Health::Done || r.health == Health::Stressed),
             "udp refuses sixteen bits plus one"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -445,6 +442,5 @@ mod tests {
         let dir = scratch("storm-brutal");
         let mut storm = Storm::new(scope("storm"), &dir).at(Stress::Brutal);
         weather(&mut storm, Stress::Brutal.rounds());
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

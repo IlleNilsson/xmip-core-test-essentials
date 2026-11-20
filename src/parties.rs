@@ -109,7 +109,8 @@ impl Parties {
     /// These Parties spread over every transport the Essentials drives.
     #[must_use]
     pub fn over_every_transport(&self) -> Spread {
-        let names: Vec<&str> = all_transports(std::env::temp_dir())
+        // Only their names are read: no round trip runs, so no folder is made.
+        let names: Vec<&str> = all_transports(std::path::PathBuf::new())
             .iter()
             .map(|transport| transport.transport())
             .collect();

@@ -304,7 +304,6 @@ mod tests {
             (Vec::new(), 0),
             "one node's two stages do not share an inbox"
         );
-        std::fs::remove_dir_all(&shared).ok();
     }
 
     #[test]
@@ -324,7 +323,6 @@ mod tests {
         assert_eq!(claimed, [handoff(1, b"whole")]);
         assert_eq!(unreadable, 1);
         assert!(half.exists());
-        std::fs::remove_dir_all(&shared).ok();
     }
 
     #[test]

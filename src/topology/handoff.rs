@@ -34,8 +34,7 @@ pub(super) fn handoff_links(
     hops: &[Hop],
 ) -> Vec<TopologyLink> {
     let mut pairs: Vec<(Pair, bool, u64)> = configured
-        .map(configured_pairs)
-        .unwrap_or_default()
+        .map_or_default(configured_pairs)
         .into_iter()
         .map(|pair| (pair, true, 0))
         .collect();

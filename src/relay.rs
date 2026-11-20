@@ -393,7 +393,6 @@ mod tests {
             .map(|count| count.value),
             Some(pairs as u64)
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -438,7 +437,6 @@ mod tests {
             2 * CONTRACTS.len(),
             "no pair has two receivers"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
@@ -484,6 +482,5 @@ mod tests {
             Relay::new(receiving, &root, Stage::Send, &full, &dir, &dir).is_none(),
             "a node runs only the stages it declared"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 }
