@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The Essentials' Work Process: every sales order a Party sends is
+     approved before the ERP takes it. Each order is an Instance of its own:
+     it is marked approved, a new Message generation, and published back
+     through routing, where the cluster's Subscription "Approved sales
+     orders" takes it to the ERP (cluster.xmip). The unit the nodes load,
+     examples/order_approval.rs, is what process::generate makes of it;
+     compile this design again rather than edit that file. -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D"
+    targetNamespace="urn:xmip:essentials">
+  <bpmn:process id="OrderApproval" isExecutable="true">
+    <bpmn:startEvent id="Received"/>
+    <bpmn:task id="Approve">
+      <bpmn:dataOutputAssociation id="Approved">
+        <bpmn:assignment><bpmn:from>'approved'</bpmn:from><bpmn:to>Approval</bpmn:to></bpmn:assignment>
+      </bpmn:dataOutputAssociation>
+    </bpmn:task>
+    <bpmn:sendTask id="Publish"/>
+    <bpmn:endEvent id="Done"/>
+    <bpmn:sequenceFlow id="F1" sourceRef="Received" targetRef="Approve"/>
+    <bpmn:sequenceFlow id="F2" sourceRef="Approve" targetRef="Publish"/>
+    <bpmn:sequenceFlow id="F3" sourceRef="Publish" targetRef="Done"/>
+  </bpmn:process>
+</bpmn:definitions>

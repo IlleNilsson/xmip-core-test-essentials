@@ -134,6 +134,39 @@ identities = [
   { mechanism = "mutual-tls", purpose = "receive", value = "CN=party-e.example" },
 ]
 
+# The Work Process unit "Order approval" is: `order-approval.bpmn` beside
+# this file, compiled by `process::generate` into the example
+# `order_approval`, which the run builds and copies beside each node that
+# serves the process stage. The entry is the generator's, as written: its
+# library named by the module, and each node names the file as its own
+# system does (`xmip_module.h` section 1), so this one file serves Windows
+# and Linux nodes alike.
+[[modules]]
+name = "order-approval"
+start = true
+
+[modules.manifest]
+offline = true
+
+[modules.manifest.identity]
+name = "order-approval"
+version = "0.1.0"
+
+[[modules.manifest.capabilities]]
+capability = "work-process"
+execution_host = "native-rust"
+trusted_required = false
+
+[modules.manifest.entrypoint]
+library_path = "order_approval"
+symbol = "xmip_create_module_v1"
+
+[[modules.manifest.units]]
+name = "OrderApproval"
+capability = "work-process"
+stages = ["process"]
+offline = true
+
 # Two Xmip Applications (ADR-0064), each a business flow an ERP runs with
 # its Parties: order to cash and procure to pay. The Parties trade real
 # documents, UN/EDIFACT interchanges (`documents/`), and the company's ERP —
@@ -203,10 +236,25 @@ name = "Invoices to Party-A"
 send_locations = ["Invoices to Party-A", "Invoices to Party-A, failover"]
 failover = "next"
 
+# Every sales order is approved before the ERP takes it: the Subscription
+# "Sales orders" hands each to the Work Process, which marks it
+# `Approval = 'approved'`, a new Message generation, and publishes it back
+# through routing, where "Approved sales orders" takes it to the ERP. An
+# order already marked is never handed to the Work Process again.
+[[xmip_applications.work_processes]]
+name = "Order approval"
+module = "order-approval"
+unit = "OrderApproval"
+
 [[xmip_applications.subscriptions]]
 id = "Sales orders"
+destination = { work-process = "Order approval" }
+filter = "\"content:edi:UNH/2/1\" = 'ORDERS' and \"content:edi:UNB/3/1\" = 'ESSENTIALS' and not exists Approval"
+
+[[xmip_applications.subscriptions]]
+id = "Approved sales orders"
 destination = { send-port = "Sales orders to ERP" }
-filter = "\"content:edi:UNH/2/1\" = 'ORDERS' and \"content:edi:UNB/3/1\" = 'ESSENTIALS'"
+filter = "\"content:edi:UNH/2/1\" = 'ORDERS' and \"content:edi:UNB/3/1\" = 'ESSENTIALS' and Approval = 'approved'"
 
 [[xmip_applications.subscriptions]]
 id = "Remittance advices"

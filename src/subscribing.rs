@@ -44,7 +44,6 @@ use std::time::Duration;
 
 use codec::cursor::Cursor;
 use codec::field::{counted, read_counted, read_text, text};
-use context::MessageContext;
 use journey::{Journey, JourneyState, Received};
 use message::{Message, MessageSection, MessageTreatment};
 use observe::{Act, Snapshot};
@@ -174,7 +173,9 @@ impl Subscribing {
             .relayed
             .get(round % self.relayed.len().max(1))
             .ok_or("REFUSED: the Essentials ship no document to publish a pair as")?;
-        let promoted = self.documents.promoted(&document.bytes)?;
+        // No Work Process step runs here: the node publishes the Message a
+        // Work Process would (`Documents::published`; xmip-service runs it).
+        let (context, promoted) = self.documents.published(&document.bytes)?;
         let routing = publish(&promoted, &self.subscriptions);
         let picked = routing.evaluations.iter().find(|one| one.matched());
         let location = picked
@@ -198,7 +199,7 @@ impl Subscribing {
         let message = Message::received(
             MessageId::new(ids.next_u128()),
             vec![section],
-            MessageContext::new(),
+            context,
             MessageTreatment::default(),
         );
         let through = Publisher {

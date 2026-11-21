@@ -455,7 +455,17 @@ Send Ports to it, and each Subscription picks up one kind of document by its
 message type and recipient, so every document is picked up once; what a
 processing node publishes for a relayed pair is the round's document
 itself, routed by its own bytes, the pair's bytes riding beside it to the
-send stage unchanged (`src/documents.rs`, `src/subscribing.rs`). A
+send stage unchanged (`src/documents.rs`, `src/subscribing.rs`). Since
+2026-11-21 every sales order passes a Work Process on its way to the ERP:
+*Order approval*, the design
+[`configuration/order-approval.bpmn`](configuration/order-approval.bpmn),
+marks it approved and publishes it, and a second Subscription takes it to
+the ERP. Its unit is this crate's example `order_approval`, built with the
+roll and copied beside each served node that opens it; the judge follows a
+document through it by what the design assigns, and the simulated node,
+which runs no Work Process step, publishes the Message the Work Process
+would (`src/order_approval.rs`; ADR-0028 and ADR-0066, amendments
+2026-11-21). A
 node that declared process writes the cluster's file with the run's names
 and the bindings that place every Application on the run's nodes — read
 from the sections, never named in the code — slices its own configuration from it as

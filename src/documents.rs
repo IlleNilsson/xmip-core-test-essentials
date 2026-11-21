@@ -17,14 +17,18 @@
 //! what the cluster's Subscriptions say of the properties promoted from it,
 //! read as a node reads them: the `content` route technology over the `edi`
 //! path language, gathered by `route::Gathering` and decided by
-//! `route::publish`. Nothing here routes again.
+//! `route::publish`. Nothing here routes again. A document a Subscription
+//! hands to a Work Process is followed through it by what its design
+//! assigns, applied as a node applies it (`assign::apply`), and routed again
+//! the same way (`crate::order_approval`).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use assign::Assignment;
 use context::MessageContext;
 use message::{Message, MessageSection, MessageTreatment};
-use route::{Gathering, Promoted, Subscription, publish};
+use route::{Gathering, Promoted, Subscriber, Subscription, publish};
 use route_content::ContentSource;
 use stream::Stream;
 use xcore::{MessageId, SectionId, StreamId};
@@ -46,6 +50,9 @@ pub struct Document {
 pub struct Documents {
     by_folder: BTreeMap<String, Vec<Document>>,
     subscriptions: Vec<Subscription>,
+    /// Each Work Process the rig follows a document through, by name, with
+    /// what it assigns before it publishes (`crate::order_approval`).
+    processes: Vec<(String, Vec<Assignment>)>,
     gathering: Gathering,
 }
 
@@ -103,7 +110,19 @@ impl Documents {
                 .map_or_default(|name| name.to_string_lossy().into_owned());
             by_folder.insert(name, documents);
         }
-        let subscriptions: Vec<Subscription> = configure::applications(cluster)?
+        let applications = configure::applications(cluster)?;
+        // What each Work Process whose unit is the Essentials' own assigns
+        // before it publishes, so a document is followed through it.
+        let assigned = crate::order_approval::assignments()?;
+        let processes: Vec<(String, Vec<Assignment>)> = applications
+            .iter()
+            .flat_map(|application| application.work_processes.iter())
+            .filter(|process| {
+                process.module.as_deref() == Some(crate::order_approval::ORIGIN.module)
+            })
+            .map(|process| (process.name.clone(), assigned.clone()))
+            .collect();
+        let subscriptions: Vec<Subscription> = applications
             .into_iter()
             .flat_map(|application| application.subscriptions)
             .collect();
@@ -118,6 +137,7 @@ impl Documents {
         Ok(Self {
             by_folder,
             subscriptions,
+            processes,
             gathering,
         })
     }
@@ -164,30 +184,84 @@ impl Documents {
     ///
     /// The source's refusal, where the document does not read.
     pub fn promoted(&self, bytes: &[u8]) -> Result<Promoted, String> {
+        self.promoted_in(bytes, MessageContext::new())
+    }
+
+    /// What the Subscriptions read of `bytes` in a Message whose context is
+    /// `context`, promoted as a node promotes it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Documents::promoted`].
+    pub fn promoted_in(&self, bytes: &[u8], context: MessageContext) -> Result<Promoted, String> {
         self.gathering
-            .promote(&received(bytes))
+            .promote(&received(bytes, context))
             .map_err(|error| error.to_string())
+    }
+
+    /// The Message the Work Processes publish of `bytes` before a Send Port
+    /// takes it, as its context ([`Documents::processed`]) and what the
+    /// Subscriptions read of it: what a node that runs no Work Process step
+    /// of its own, as the Essentials' simulated node, publishes in its place
+    /// (`crate::subscribing`).
+    ///
+    /// # Errors
+    ///
+    /// As [`Documents::promoted`].
+    pub fn published(&self, bytes: &[u8]) -> Result<(MessageContext, Promoted), String> {
+        let context = self.processed(bytes);
+        let promoted = self.promoted_in(bytes, context.clone())?;
+        Ok((context, promoted))
+    }
+
+    /// The context of the Message the Work Processes publish of `bytes` before
+    /// a Send Port takes it: at each step the first Subscription that takes
+    /// it, and where that one hands it to a Work Process the rig follows,
+    /// what its design assigns. Empty where none does.
+    #[must_use]
+    pub fn processed(&self, bytes: &[u8]) -> MessageContext {
+        let mut context = MessageContext::new();
+        let mut depth = 0;
+        while let Ok(promoted) = self.promoted_in(bytes, context.clone()) {
+            let routing = publish(&promoted, &self.subscriptions);
+            let first = routing
+                .evaluations
+                .iter()
+                .find(|evaluation| evaluation.matched());
+            let Some(Subscriber::WorkProcess(name)) = first.map(|one| &one.destination) else {
+                break;
+            };
+            let Some((_, assigned)) = self.processes.iter().find(|(process, _)| process == name)
+            else {
+                break;
+            };
+            depth += 1;
+            if !journey::ChainLimit::DEFAULT.permits(depth) {
+                break;
+            }
+            context = assign::apply(context, assigned);
+        }
+        context
     }
 
     /// The destinations the cluster's Subscriptions route `bytes` to, each
     /// a Send Port's name, in the Subscriptions' order: none for a document
-    /// no Subscription takes.
+    /// no Subscription takes. A document a Subscription hands to a Work
+    /// Process is followed through it: the Message it publishes, carrying
+    /// what it assigned, is routed again as the node routes it
+    /// (`runtime::work_step::acts`), so its destinations are where that
+    /// Message goes.
     #[must_use]
     pub fn routed(&self, bytes: &[u8]) -> Vec<String> {
-        let Ok(promoted) = self.promoted(bytes) else {
+        let Ok((_, promoted)) = self.published(bytes) else {
             return Vec::new();
         };
-        let routing = publish(&promoted, &self.subscriptions);
-        routing
+        publish(&promoted, &self.subscriptions)
             .evaluations
             .iter()
             .filter(|evaluation| evaluation.matched())
-            .filter_map(|evaluation| {
-                self.subscriptions
-                    .iter()
-                    .find(|subscription| subscription.id == evaluation.subscription_id)
-            })
-            .map(|subscription| subscription.destination.name().to_string())
+            .filter(|evaluation| !matches!(evaluation.destination, Subscriber::WorkProcess(_)))
+            .map(|evaluation| evaluation.destination.name().to_string())
             .collect()
     }
 }
@@ -200,8 +274,9 @@ pub fn content() -> ContentSource {
     ContentSource::linked()
 }
 
-/// `bytes` as a Message received whole, its one section the document.
-fn received(bytes: &[u8]) -> Message {
+/// `bytes` as a Message received whole, its one section the document, its
+/// context `context`.
+fn received(bytes: &[u8], context: MessageContext) -> Message {
     let section = MessageSection {
         section_id: SectionId::new(1),
         name: None,
@@ -211,7 +286,7 @@ fn received(bytes: &[u8]) -> Message {
     Message::received(
         MessageId::new(1),
         vec![section],
-        MessageContext::new(),
+        context,
         MessageTreatment::default(),
     )
 }
@@ -280,6 +355,51 @@ mod tests {
         assert!(
             refused.starts_with("REFUSED") && refused.contains("Nowhere"),
             "{refused}"
+        );
+    }
+
+    /// A sales order is handed to the Work Process "Order approval" alone,
+    /// and the Message it publishes, marked approved, to the ERP's Send
+    /// Port: the route the judge expects it at.
+    #[test]
+    fn a_sales_order_is_approved_by_the_work_process_before_the_erp_takes_it() {
+        let documents = Documents::shipped().expect("read");
+        let order = &documents
+            .of("Sales orders from Party-C", "sales-orders-from-party-c")
+            .expect("documents")[0];
+        let promoted = documents.promoted(&order.bytes).expect("promoted");
+        let first: Vec<Subscriber> = publish(&promoted, &documents.subscriptions)
+            .evaluations
+            .into_iter()
+            .filter(route::Evaluation::matched)
+            .map(|evaluation| evaluation.destination)
+            .collect();
+        assert_eq!(
+            first,
+            [Subscriber::WorkProcess("Order approval".to_string())]
+        );
+        let published = documents.processed(&order.bytes);
+        assert_eq!(
+            published.get("Approval"),
+            Some(&xcore::ScalarValue::Text("approved".to_string()))
+        );
+        assert_eq!(documents.routed(&order.bytes), ["Sales orders to ERP"]);
+        // Every other document goes where it went: no Work Process takes it.
+        let remittance = &documents
+            .of(
+                "Remittance advices from Party-E",
+                "remittance-advices-from-party-e",
+            )
+            .expect("documents")[0];
+        assert!(
+            documents
+                .processed(&remittance.bytes)
+                .get("Approval")
+                .is_none()
+        );
+        assert_eq!(
+            documents.routed(&remittance.bytes),
+            ["Remittance advices to ERP"]
         );
     }
 }

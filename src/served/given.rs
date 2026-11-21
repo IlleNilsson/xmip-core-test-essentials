@@ -207,6 +207,7 @@ pub(super) fn configured(
     let issuer = provision::host::authority(&authority, &name, now)
         .map_err(|error| format!("the Essentials' authority: {error}"))?;
     runtime::signed::delivered(&path, &issuer, text, &sliced)?;
+    unit_placed(&path, &folder)?;
     provision::node::issue_into(
         &authority,
         &name,
@@ -217,6 +218,43 @@ pub(super) fn configured(
     )
     .map_err(|error| format!("{node}'s certificate: {error}"))?;
     Ok(path)
+}
+
+/// The Essentials' Work Process unit copied beside the node's configuration
+/// at `path`, in `folder`, where the node opens it: where a Work Process it
+/// starts, its own or one its bindings give it, names the unit's module,
+/// read as the node reads its slice (`runtime::start::read`, the execution
+/// tree's `modules_to_start`), as an environment carries a module's library
+/// to a machine's node. It is taken from beside the run's own program,
+/// where the Essentials' build put it (`Invoke-XmipEssentialsBuild`), or a
+/// test's, where cargo test built it. A slice the runtime does not build a
+/// tree of is left to its node, which refuses it in its own words.
+///
+/// # Errors
+///
+/// Where the unit was not built, or it does not copy.
+fn unit_placed(path: &Path, folder: &Path) -> Result<(), String> {
+    let module = crate::order_approval::ORIGIN.module;
+    let opens = runtime::start::read(&path.display().to_string())
+        .ok()
+        .and_then(|(document, applications, _)| {
+            let declared = configure::Declarations::new();
+            runtime::execution_tree::build_execution_tree(document, &applications, &declared).ok()
+        })
+        .is_some_and(|(tree, _)| tree.modules_to_start.iter().any(|one| one.name == module));
+    if !opens {
+        return Ok(());
+    }
+    let file = crate::order_approval::library_file();
+    let built = file::built::found(Path::new("examples").join(&file)).ok_or_else(|| {
+        format!(
+            "the Work Process unit {file} was not built: Start-XmipTest builds it, \
+             cargo build --example order_approval in test/core/essentials"
+        )
+    })?;
+    std::fs::copy(&built, folder.join(&file))
+        .map(drop)
+        .map_err(|error| format!("{} beside {}: {error}", built.display(), folder.display()))
 }
 
 /// The name the Essentials' authority kept in `place` was made under, read
@@ -361,6 +399,49 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The Essentials' Work Process unit is beside each node of a run that
+    /// opens it, the nodes serving the process stage, and beside no other:
+    /// the run gives a node what its own reading of its slice starts.
+    #[test]
+    fn the_work_process_unit_is_placed_beside_each_node_that_opens_it_and_no_other() {
+        let declared = configure::cluster::capabilities(CLUSTER).expect("the file's roles");
+        let cluster = crate::cluster_name().expect("the test cluster is named");
+        let base = crate::support::scratch("given-unit");
+        let now = observe::now_unix_nanos() / 1_000_000_000;
+        provision::Issuer::kept_or_made(
+            &crate::environment::authority(),
+            "Xmip Essentials test authority",
+            now,
+            3600,
+        )
+        .expect("the authority Start-XmipTest makes");
+        let area = base.join("run");
+        let text = cluster_text(
+            &cluster,
+            &declared,
+            &placed(&declared, &area).expect("placed"),
+        )
+        .expect("the cluster's text");
+        let file = crate::order_approval::library_file();
+        let mut beside = Vec::new();
+        for (node, declares) in &declared {
+            configured(&text, (&cluster, node), &area).expect("configured");
+            let processing = declares
+                .roles()
+                .iter()
+                .any(|role| matches!(role, NodeRole::Processing | NodeRole::Executing));
+            let placed = area.join(node).join(&file).is_file();
+            assert_eq!(placed, processing, "{node}: the unit beside it");
+            if placed {
+                beside.push(node.clone());
+            }
+        }
+        assert!(
+            !beside.is_empty(),
+            "some node of the file runs the Work Process"
+        );
     }
 
     /// The `[tuning] connect_retransmissions` the node configured at `path`
