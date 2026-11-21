@@ -168,7 +168,13 @@ mod tests {
         (refused, unexplained)
     }
 
+    // For the runner, as the brutal sizes are: it waits about twenty seconds
+    // for timeouts and opens connections fast enough to exhaust Windows's
+    // ports beside a landing's other parts, which stopped two landings on
+    // 2026-11-21 (open problem 89). `Start-XmipTest -Stress Harsh` drives the
+    // same sizes.
     #[test]
+    #[ignore = "harsh: file, tcp and udp at the edge sizes, for the runner"]
     fn harsh_sizes_are_carried_or_refused_with_a_reason() {
         let dir = scratch("round-trip-harsh");
         let transports: Vec<Box<dyn RoundTrip>> = vec![
